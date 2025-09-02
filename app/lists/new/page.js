@@ -1,165 +1,148 @@
 // /app/lists/new/page.js
 'use client'
 
-import { useState } from 'react'
-import TermCard from '@/components/TermCard'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
 import useUserStore from '@/store/useUserStore'
 import toast from 'react-hot-toast'
+import LoadingSpinner from '@/components/LoadingSpinner'
+import { FiSave } from 'react-icons/fi'
+
 
 export default function NewListPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('idiomas')
+  const [category, setCategory] = useState('languages')
   const [isPublic, setIsPublic] = useState(true)
-  const [terms, setTerms] = useState([])
-  const [newTerm, setNewTerm] = useState({ term: '', definition: '', hint: '', termImage: '', definitionImage: '' })
-  const [termPreview, setTermPreview] = useState('')
-  const [definitionPreview, setDefinitionPreview] = useState('')
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true) // Estado para controle de verificação
+  const isHydrated = useUserStore(state => state.isHydrated);
 
   const userId = useUserStore(state => state.user?.uid)
   const firebaseToken = useUserStore(state => state.firebaseToken)
-
   const router = useRouter()
 
-  const uploadImage = async (file, type) => {
-    const formData = new FormData()
-    formData.append('file', file)
+  // Verificar autenticação e redirecionar se necessário
+  useEffect(() => {
+    if(!isHydrated) return;
+    // Aguardar um pouco para garantir que o estado do usuário seja carregado
+    const timer = setTimeout(() => {
+      if (!userId || !firebaseToken) {
+        toast.error('Você precisa estar logado para criar uma lista.')
+        router.push('/login')
+      } else {
+        setIsCheckingAuth(false)
+      }
+    }, 100)
 
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!res.ok) throw new Error('Falha no upload')
-    const { url } = await res.json()
-    setNewTerm(prev => ({ ...prev, [type]: url }))
-  }
-
-  const handleFileChange = async (e, type, setPreview) => {
-    const file = e.target.files[0]
-    if (file) {
-      setPreview(URL.createObjectURL(file))
-      await uploadImage(file, type)
-    }
-  }
-
-  const addTerm = () => {
-    if (!newTerm.term || !newTerm.definition) return
-
-    setTerms([...terms, {
-      ...newTerm,
-      progress: userId ? [{ userId, status: 0 }] : []
-    }])
-
-    setNewTerm({ term: '', definition: '', hint: '', termImage: '', definitionImage: '' })
-    setTermPreview('')
-    setDefinitionPreview('')
-  }
-
-  const removeTerm = (index) => {
-    const updated = [...terms]
-    updated.splice(index, 1)
-    setTerms(updated)
-  }
+    return () => clearTimeout(timer)
+  }, [userId, firebaseToken, router, isHydrated])
 
   const handleSave = async () => {
     if (!userId || !firebaseToken) {
       toast.error('Você precisa estar logado para criar uma lista.')
+      router.push('/login')
       return
     }
 
-    const payload = { title, description, public: isPublic, terms, category }
-
-    const res = await fetch('/api/lists', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${firebaseToken}`
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (res.ok) {
-      toast.success('Lista criada com sucesso!')
-      router.push(`/users/${userId}`)
+    if (!title.trim()) {
+      toast.error('O título é obrigatório.')
+      return
     }
-    else toast.error('Erro ao salvar lista!')
+
+    const payload = {
+      title,
+      description,
+      public: isPublic,
+      terms: [],
+      category
+    }
+
+    try {
+      const res = await fetch('/api/lists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${firebaseToken}`
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        throw new Error('Erro ao criar lista.')
+      }
+
+      const data = await res.json()
+      toast.success('Lista criada com sucesso!')
+      router.push(`/lists/${data._id}/edit`)
+    } catch (err) {
+      toast.error('Erro ao salvar lista.')
+    }
+  }
+
+  // Mostrar loading enquanto verifica a autenticação
+  if (isCheckingAuth || !isHydrated) {
+    return (
+      <LoadingSpinner message={'Verificando autenticação...'} />
+    )
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-4">
-      <h2 className="text-2xl font-semibold mb-4">Criar Nova Lista</h2>
-      <input type="text" placeholder="Título da lista" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-4 py-2 border rounded" />
-      <textarea placeholder="Descrição" value={description} onChange={e => setDescription(e.target.value)} className="w-full px-4 py-2 border rounded" />
-      <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border px-2 py-1 rounded">
-        {CATEGORIES.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
-      </select>
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-        Tornar esta lista pública
-      </label>
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <h2 className="text-2xl font-semibold mb-4 text-[--primary-text]">Criar Nova Lista</h2>
 
-      <hr />
-      <h2 className="text-xl font-medium">Adicionar Termo</h2>
-
-      {/* Campo Termo */}
-      <textarea
-        placeholder="Termo"
-        value={newTerm.term}
-        onChange={e => setNewTerm({ ...newTerm, term: e.target.value })}
-        className="w-full px-4 py-2 border rounded resize-y"
-        rows={2}
-      />
       <input
-        type="file"
-        accept="image/*"
-        onChange={e => handleFileChange(e, 'termImage', setTermPreview)}
+        type="text"
+        placeholder="Título da lista *"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        className="w-full px-4 py-3 border border-indigo-500/30 bg-[#24243e] text-[--primary-text] rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
       />
-      {termPreview && (
-        <img
-          src={termPreview}
-          alt="Prévia termo"
-          className="w-full h-40 object-cover rounded"
-        />
-      )}
 
-      {/* Campo Definição */}
       <textarea
-        placeholder="Definição"
-        value={newTerm.definition}
-        onChange={e => setNewTerm({ ...newTerm, definition: e.target.value })}
-        className="w-full px-4 py-2 border rounded resize-y"
-        rows={2}
+        placeholder="Descrição (opcional)"
+        value={description}
+        onChange={e => setDescription(e.target.value)}
+        className="w-full px-4 py-3 border border-indigo-500/30 bg-[#24243e] text-[--primary-text] rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+        rows={3}
       />
-      <input
-        type="file"
-        accept="image/*"
-        onChange={e => handleFileChange(e, 'definitionImage', setDefinitionPreview)}
-      />
-      {definitionPreview && (
-        <img
-          src={definitionPreview}
-          alt="Prévia definição"
-          className="w-full h-40 object-cover rounded"
-        />
-      )}
 
-      <textarea placeholder="Dica (opcional)" value={newTerm.hint} onChange={e => setNewTerm({ ...newTerm, hint: e.target.value })} className="w-full px-4 py-2 border rounded resize-y" rows={1}/>
-
-      <button onClick={addTerm} className="bg-emerald-600 text-white py-2 px-4 rounded">Adicionar Termo</button>
-
-      <div className="grid gap-2 mt-6">
-        {terms.map((term, i) => (
-          <div key={i} className="relative">
-            <TermCard term={term} />
-            <button onClick={() => removeTerm(i)} className="absolute top-1 right-1 text-xs text-red-500 hover:underline">remover</button>
-          </div>
-        ))}
+      <div className="p-4 bg-[#24243e] rounded-lg border border-indigo-500/20">
+        <label className="block mb-2 text-sm font-medium text-gray-300">Categoria:</label>
+        <select
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          className="w-full px-4 py-3 border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+        >
+          {CATEGORIES.slice(1).map(cat => (
+            <option key={cat.value} value={cat.value}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <button onClick={handleSave} className="mt-6 bg-blue-600 text-white py-2 px-4 rounded">Salvar Lista</button>
+      <div className="flex items-center gap-3 p-4 bg-[#24243e] rounded-lg border border-indigo-500/20">
+        <input
+          type="checkbox"
+          id="isPublic"
+          checked={isPublic}
+          onChange={e => setIsPublic(e.target.checked)}
+          className="w-5 h-5 text-indigo-500 bg-[#2d2b55] border-indigo-500/30 rounded focus:ring-2 focus:ring-indigo-500"
+        />
+        <label htmlFor="isPublic" className="text-gray-300">
+          Tornar esta lista pública
+        </label>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={!title.trim()}
+        className="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+      >
+        <FiSave className="w-5 h-5" />
+        {!title.trim() ? 'Digite um título para salvar' : 'Salvar Lista'}
+      </button>
     </div>
   )
 }

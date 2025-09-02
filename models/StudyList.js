@@ -6,12 +6,18 @@ const StudyListSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, default: '' },
   public: { type: Boolean, default: false },
-  ownerUid: { type: String },
+  
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', required: true },
+  ownerUid: { type: String, required: true }, // UID do Firebase
+
   originalListId: { type: String },
-  // Define explicitamente o tipo e default para evitar comportamentos estranhos
   terms: { type: [TermSchema], default: [] },
+  
   likes: { type: Number, default: 0 },
   likedBy: { type: [String], default: [] },
+  dislikes: { type: Number, default: 0 },
+  dislikedBy: { type: [String], default: [] },
+
   category: { type: String, required: true },
 }, { timestamps: true })
 

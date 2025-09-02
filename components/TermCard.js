@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { STATUS_ICONS } from '@/lib/utils'
 
-export default function TermCard({ term }) {
+export default function TermCard({ term, isAuthenticated }) {
   const [uid, setUid] = useState(null)
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function TermCard({ term }) {
       <h4 className="text-xl font-semibold text-gray-800 break-words flex-1">
         {term.term}
       </h4>
-      <StatusIcon className={`text-3xl ${color} min-w-[24px]`} />
+      {isAuthenticated && <StatusIcon className={`text-3xl ${color} min-w-[24px]`} />}
     </div>
 
     {/* Term Image */}

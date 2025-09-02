@@ -9,15 +9,23 @@ const useUserStore = create(
     (set) => ({
       user: null,
       firebaseToken: null,
+      isHydrated: false,
+
       setUser: (user) => set({ user }),
       setFirebaseToken: (token) => set({ firebaseToken: token }),
       logout: async () => {
         await signOut(auth)
         set({ user: null, firebaseToken: null })
       },
+      setIsHydrated: (isHydrated) => set({ isHydrated }),
+
     }),
     {
       name: 'ememora-auth',
+      onRehydrateStorage: () => (state) => {
+        // Quando a rehidratação estiver completa
+        state?.setIsHydrated(true)
+      },
       partialize: (state) => ({ user: state.user, firebaseToken: state.firebaseToken }),
     }
   )

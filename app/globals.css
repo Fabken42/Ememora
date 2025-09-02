@@ -1,36 +1,31 @@
-
 @import "tailwindcss";
 
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap');
 
 :root {
-  --background: #f9f6f1;
-  --foreground: #1a1a2e;
+  --background: #1a1a2e;
+  --primary-text: #eaeaea;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1a1a2e;
-    --foreground: #f9f6f1;
-  }
-}
+
 
 body {
   background-color: var(--background);
-  color: var(--foreground);
+  color: var(--primary-text);
   font-family: 'Fredoka', sans-serif;
-  transition: all 0.3s, color 0.3s;
 }
 
-
-button{
-  transition: all 0.3s, transform 0.3s;
+/* Garante que a transição seja suave */
+* {
+  transition: all ease-in-out 0.3s;
 }
+
 
 button:hover {
   cursor: pointer;
   transform: scale(1.03);
 }
+
 
 /* efeito de flip do componente Flashcard */
 .perspective {

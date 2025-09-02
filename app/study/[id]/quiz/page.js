@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import Quiz from '@/components/Quiz'
 import EndGameScreen from '@/components/EndGameScreen'
 import useUserStore from '@/store/useUserStore'
+import GameSettings from '@/components/GameSettings'
+import { FiAward, FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 
 function shuffleArray(array) {
   return [...array].sort(() => Math.random() - 0.5)
@@ -20,39 +22,72 @@ export default function QuizStudyPage() {
   const [rightAnswer, setRightAnswer] = useState(0)
   const [wrongAnswer, setWrongAnswer] = useState(0)
   const [gameOver, setGameOver] = useState(false)
+  const [settingsChosen, setSettingsChosen] = useState(false)
+  const [listInfo, setListInfo] = useState(null)
+  const [loadingInfo, setLoadingInfo] = useState(true)
+
+  const [reviewMode, setReviewMode] = useState(false)
+  const [answeredQuestions, setAnsweredQuestions] = useState([])
+
   const params = useParams()
   const { firebaseToken } = useUserStore()
 
-  useEffect(() => {
-    const fetchList = async () => {
-      try {
-        if (!params.id) return
+  const fetchListInfo = async () => {
+    try {
+      if (!params.id) return
 
-        const headers = {}
-        if (firebaseToken) {
-          headers['Authorization'] = `Bearer ${firebaseToken}`
-        }
-
-        const res = await fetch(`/api/lists/${params.id}`, { headers })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || "Erro ao carregar quiz")
-
-        setTitle(data.title)
-        setTerms(shuffleArray(data.terms))
-        setIndex(0)
-        setRightAnswer(0)
-        setWrongAnswer(0)
-        setGameOver(false)
-      } catch (err) {
-        console.error("Erro ao buscar lista para quiz:", err)
+      const headers = {}
+      if (firebaseToken) {
+        headers['Authorization'] = `Bearer ${firebaseToken}`
       }
-    }
 
-    fetchList()
-  }, [params.id, firebaseToken])
+      const res = await fetch(`/api/lists/${params.id}?includePerfect=true&limit=0`, { headers })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao buscar informações da lista')
+
+      setListInfo(data)
+    } catch (err) {
+      console.error('Erro ao buscar informações da lista:', err)
+    } finally {
+      setLoadingInfo(false)
+    }
+  }
 
   useEffect(() => {
-    if (terms.length > 0) {
+    if (!settingsChosen) fetchListInfo()
+  }, [params.id, firebaseToken, settingsChosen])
+
+  const fetchList = async (opts) => {
+    try {
+      if (!params.id) return
+
+      const headers = {}
+      if (firebaseToken) {
+        headers['Authorization'] = `Bearer ${firebaseToken}`
+      }
+
+      const res = await fetch(
+        `/api/lists/${params.id}?includePerfect=${opts.includePerfect}&limit=${opts.limit}&isRandomOrder=${opts.randomOrder}`,
+        { headers }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Erro ao carregar quiz")
+
+      setTitle(data.title)
+      setTerms(data.terms || [])
+      setIndex(0)
+      setRightAnswer(0)
+      setWrongAnswer(0)
+      setGameOver(false)
+      setReviewMode(false)
+      setAnsweredQuestions([])
+    } catch (err) {
+      console.error("Erro ao buscar lista para quiz:", err)
+    }
+  }
+
+  useEffect(() => {
+    if (terms.length > 0 && !reviewMode) {
       const current = terms[index]
       const others = terms.filter(t => t._id !== current._id)
 
@@ -73,9 +108,25 @@ export default function QuizStudyPage() {
       setCanProceed(false)
       setResetKey(prev => prev + 1)
     }
-  }, [index, terms])
+  }, [index, terms, reviewMode])
 
-  const handleAnswer = async (correct) => {
+  const handleStart = (opts) => {
+    setSettingsChosen(true)
+    fetchList(opts)
+  }
+
+  const handleAnswer = async (correct, selectedOption) => {
+    // Registrar a resposta com todas as informações
+    const newAnsweredQuestion = {
+      term: terms[index],
+      correct,
+      index,
+      selectedOption, // A opção que o usuário selecionou
+      options: options, // Todas as opções que apareceram
+      correctAnswer: terms[index].definition // A resposta correta
+    }
+    setAnsweredQuestions(prev => [...prev, newAnsweredQuestion])
+
     setCanProceed(true)
     if (correct) {
       setRightAnswer(prev => prev + 1)
@@ -113,29 +164,93 @@ export default function QuizStudyPage() {
     }
   }
 
-  if (!terms.length) return <p className="p-4">Carregando quiz...</p>
-  if (gameOver) return <EndGameScreen rightAnswer={rightAnswer} total={terms.length} listId={params.id} />
+  // Nova função para iniciar a revisão
+  const handleReviewErrors = () => {
+    const wrongAnswers = answeredQuestions.filter(q => !q.correct)
+    const correctAnswers = answeredQuestions.filter(q => q.correct)
 
+    // Primeiro os errados, depois os corretos
+    const reviewTerms = [...wrongAnswers, ...correctAnswers].map(q => q.term)
+
+    setTerms(reviewTerms)
+    setIndex(0)
+    setGameOver(false)
+    setReviewMode(true)
+    setCanProceed(true) // No modo revisão, já pode prosseguir
+  }
+
+  // Função para reiniciar completamente
+  const handleRestart = () => {
+    setGameOver(false)
+    setReviewMode(false)
+    setSettingsChosen(false)
+    setTerms([])
+    setAnsweredQuestions([])
+    setRightAnswer(0)
+    setWrongAnswer(0)
+  }
+
+  // Função para finalizar a revisão a qualquer momento
+  const handleFinishReview = () => {
+    setGameOver(true)
+  }
+
+  if (!settingsChosen) {
   return (
-    <div className="p-6 max-w-lg mx-auto min-h-screen flex flex-col">
+    <div className="p-6 max-w-md mx-auto min-h-screen ">
+      {loadingInfo ? (
+        <div className="flex justify-center items-center p-8">
+          <p className="text-[var(--primary-text)]">Carregando informações...</p>
+        </div>
+      ) : (
+        <GameSettings
+          onStart={handleStart}
+          listInfo={listInfo}
+        />
+      )}
+    </div>
+  )
+}
 
+if (!terms.length) return (
+  <div className="min-h-screen flex items-center justify-center ">
+    <p className="text-[var(--primary-text)] p-4">Carregando quiz...</p>
+  </div>
+)
+
+if (gameOver) return (
+  <div className="min-h-screen  p-6">
+    <EndGameScreen
+      rightAnswer={rightAnswer}
+      total={terms.length}
+      listId={params.id}
+      onReviewErrors={handleReviewErrors}
+      showReviewButton={true}
+      onRestart={handleRestart}
+      isReviewMode={reviewMode}
+    />
+  </div>
+)
+
+return (
+  <>
+    <div className="p-6 max-w-lg mx-auto min-h-screen flex flex-col ">
       {/* Quiz Component */}
       <div className="flex-1 flex flex-col justify-center">
 
         {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">{title}</h1>
-          <div className="flex justify-center gap-6 text-lg font-medium">
-            <span className="text-green-600 flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
+        <div className="mb-6 text-center p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
+          <h1 className="text-2xl font-bold text-[var(--primary-text)] mb-2">
+            {title}
+            {reviewMode && <span className="text-yellow-400 text-base ml-2">(Modo Revisão)</span>}
+          </h1>
+          <div className="flex justify-center gap-6 text-md font-medium">
+            <span className="text-green-400 flex items-center gap-1">
+              <FiCheck className="w-4 h-4" />
               {rightAnswer}
             </span>
-            <span className="text-red-600 flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+            <span className="text-red-400 flex items-center gap-1">
+              <FiX className="w-4 h-4" />
               {wrongAnswer}
             </span>
           </div>
@@ -146,44 +261,91 @@ export default function QuizStudyPage() {
             key={resetKey}
             term={terms[index]}
             options={options}
-            onAnswer={handleAnswer}
+            isAuthenticated={!!firebaseToken}
+            onAnswer={reviewMode ? undefined : handleAnswer}
             reset={resetKey}
+            showResult={reviewMode}
+            wasCorrect={reviewMode ?
+              answeredQuestions.find(q => q.term._id === terms[index]._id)?.correct :
+              undefined
+            }
+            reviewData={reviewMode ?
+              answeredQuestions.find(q => q.term._id === terms[index]._id) :
+              undefined
+            }
           />
         )}
 
         {/* Progress and Navigation */}
-        <div className="mt-8">
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+        <div className="mt-8 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
+          <div className="w-full bg-gray-700 rounded-full h-2.5 mb-4">
             <div
-              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              className="bg-indigo-500 h-2.5 rounded-full transition-all duration-300"
               style={{ width: `${((index + 1) / terms.length) * 100}%` }}
             ></div>
           </div>
 
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-gray-500">
-              Pergunta <span className="font-medium">{index + 1}</span> de {terms.length}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-gray-300">
+              Pergunta <span className="font-medium text-[var(--primary-text)]">{index + 1}</span> de {terms.length}
+              {reviewMode && (
+                <span className="ml-2">
+                  {answeredQuestions.find(q => q.term._id === terms[index]._id)?.correct ?
+                    <span className="text-green-400">✓</span> : 
+                    <span className="text-red-400">✗</span>}
+                </span>
+              )}
             </p>
 
-            <button
-              onClick={nextQuestion}
-              disabled={!canProceed}
-              className={`px-6 py-2 rounded-lg font-medium transition-all ${canProceed
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-            >
-              {index < terms.length - 1 ? (
-                <span className="flex items-center gap-1">
-                  Próxima <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              ) : 'Ver Resultados'}
-            </button>
+            {!reviewMode ? (
+              <button
+                onClick={nextQuestion}
+                disabled={!canProceed}
+                className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${canProceed
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-md'
+                  : 'bg-[#2d2b55] text-gray-400 cursor-not-allowed border border-indigo-500/30'
+                  }`}
+              >
+                {index < terms.length - 1 ? (
+                  <>
+                    Próxima <FiChevronRight className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    Ver Resultados <FiAward className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIndex(prev => Math.max(0, prev - 1))}
+                    className="px-4 py-2 bg-[#2d2b55] hover:bg-[#3a3780] text-white rounded-lg border border-indigo-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    disabled={index === 0}
+                  >
+                    <FiChevronLeft className="w-4 h-4" /> Anterior
+                  </button>
+                  <button
+                    onClick={() => setIndex(prev => Math.min(terms.length - 1, prev + 1))}
+                    className="px-4 py-2 bg-[#2d2b55] hover:bg-[#3a3780] text-white rounded-lg border border-indigo-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    disabled={index === terms.length - 1}
+                  >
+                    Próximo <FiChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                <button
+                  onClick={handleFinishReview}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+                >
+                  <FiCheckCircle className="w-4 h-4" /> Finalizar Revisão
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
-  )
+  </>
+)
 }
