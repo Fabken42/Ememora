@@ -8,8 +8,10 @@ import { sendEmailVerification } from 'firebase/auth'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { FiLogIn, FiMail, FiRefreshCw } from 'react-icons/fi'
+import { Suspense } from 'react'
 
-export default function VerifyEmailPage() {
+// Componente que usa useSearchParams
+function VerifyEmailContent() {
   const [loading, setLoading] = useState(false)
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
@@ -85,5 +87,38 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Componente principal com Suspense
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md p-8 rounded-xl bg-[#24243e] border border-indigo-500/20 shadow-lg text-center">
+          <div className="mb-6 flex justify-center">
+            <div className="w-16 h-16 bg-indigo-500/20 rounded-full animate-pulse"></div>
+          </div>
+          
+          <div className="h-8 bg-[#2d2b55] rounded w-3/4 mx-auto mb-4 animate-pulse"></div>
+          
+          <div className="mb-6">
+            <div className="h-4 bg-[#2d2b55] rounded w-1/2 mx-auto mb-3 animate-pulse"></div>
+            <div className="h-10 bg-[#2d2b55] rounded-lg animate-pulse"></div>
+          </div>
+
+          <div className="h-4 bg-[#2d2b55] rounded w-full mb-2 animate-pulse"></div>
+          <div className="h-4 bg-[#2d2b55] rounded w-3/4 mx-auto mb-6 animate-pulse"></div>
+
+          <div className="h-12 bg-[#2d2b55] rounded-lg mb-5 animate-pulse"></div>
+
+          <div className="pt-4 border-t border-indigo-500/20">
+            <div className="h-6 bg-[#2d2b55] rounded w-1/3 mx-auto animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }
