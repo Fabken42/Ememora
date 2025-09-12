@@ -9,6 +9,9 @@ import { Toaster } from 'react-hot-toast'
 export const metadata = {
   title: 'ememora',
   description: 'Estude termos com flashcards e quizzes.',
+  icons:{
+    icon: '/favicon.png'
+  }
 }
 
 export default function RootLayout({ children }) {

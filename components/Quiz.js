@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { HelpCircle } from 'lucide-react'
-import { STATUS_ICONS } from '@/lib/utils'
+import { getStatusInfo } from '@/lib/utils' // ← Importar a função
 import { FiCheck, FiInfo, FiX } from 'react-icons/fi'
 
 export default function Quiz({
@@ -39,21 +38,41 @@ export default function Quiz({
     }
   }, [term, reset, showResult, reviewData])
 
-  // Garante que o status esteja no intervalo 0-6
-  const clampedStatus = Math.max(0, Math.min(STATUS_ICONS.length - 1, Number(term.status) || 0))
-  const { icon: StatusIcon, color } = STATUS_ICONS[clampedStatus]
+  const getBorderColor = () => {
+    // No modo revisão, usa a cor baseada no resultado anterior
+    if (showResult) {
+      return wasCorrect ? 'border-green-400/50' : 'border-red-400/50'
+    }
 
-  // Determinar as opções a serem exibidas (no modo revisão, usar as opções originais)
+    // Durante o jogo, quando uma resposta é selecionada
+    if (selected && correctAnswer) {
+      const isCorrect = selected === correctAnswer
+      return isCorrect ? 'border-green-400/50' : 'border-red-400/50'
+    }
+
+    // Estado normal (antes de responder)
+    return 'border-indigo-500/30 hover:border-indigo-500/50'
+  }
+
+  // Calcula o status ajustado baseado na resposta atual
+  let adjustedStatus = Number(term.status) || 0
+
+  if (selected && correctAnswer) {
+    if (selected === correctAnswer) adjustedStatus += 1
+    else adjustedStatus -= 1
+  }
+
+  const { StatusIcon, color } = getStatusInfo(adjustedStatus)
+
   const displayOptions = showResult && reviewData ? reviewData.options : options
 
   return (
-    <div className={`border-2 border-indigo-500/30 hover:border-indigo-500/50 p-6 rounded-xl bg-[#24243e] shadow-lg transition-all '
-    }`}>
+    <div className={`border-2 p-6 rounded-xl bg-[#24243e] shadow-lg transition-all ${getBorderColor()}`}>
       {/* Term Header */}
       <div className="flex flex-col items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-semibold text-center">{term.term}</h2>
-          {isAuthenticated && <StatusIcon className={`text-3xl ${showResult ? (wasCorrect ? 'text-green-400' : 'text-red-400') : color}`} />}
+          <h2 className="text-2xl font-semibold text-center break-all">{term.term}</h2>
+          {isAuthenticated && <StatusIcon className={`text-3xl ${color} shrink-0`} />}
         </div>
 
         {/* Term Image */}
@@ -74,9 +93,9 @@ export default function Quiz({
               <FiInfo className="w-4 h-4" />
               <span>Dica</span>
             </div>
-            <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-lg z-10 border border-indigo-500/30">
+            <div className="absolute left-full top-0 ml-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-lg z-10 border border-indigo-500/30 break-words">
               {term.hint}
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-t border-l border-indigo-500/30"></div>
+              <div className="absolute top-3 -left-1 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-l border-b border-indigo-500/30"></div>
             </div>
           </div>
         )}
@@ -118,7 +137,7 @@ export default function Quiz({
                 }`}
             >
               {opt.image && (
-                <div className="w-full h-20 bg-[#24243e] rounded-md mb-2 overflow-hidden flex items-center justify-center border border-indigo-500/30">
+                <div className="w-full h-20 bg-[#24243e] rounded-md mb-2 overflow-hidden flex items-center justify-center border border-indigo-500/30 ">
                   <img
                     src={opt.image}
                     alt="Imagem da opção"
@@ -126,7 +145,7 @@ export default function Quiz({
                   />
                 </div>
               )}
-              <span className={`font-medium ${textColor}`}>
+              <span className={`font-medium ${textColor} break-all`}>
                 {opt.text}
               </span>
 

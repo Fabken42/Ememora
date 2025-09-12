@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import useUserStore from '@/store/useUserStore';
 import toast from 'react-hot-toast';
-import { CATEGORIES } from '@/lib/utils';
+import { CATEGORIES, hasMinimumData, LIMITS, uploadTempImages } from '@/lib/utils';
 import BackButton from '@/components/BackButton';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { FiTrash2, FiX, FiPlus, FiUpload, FiImage } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiMove, FiFileText } from 'react-icons/fi';
+import BulkAddTermsModal from '@/components/BulkAddTermsModal';
+import ExistingTermCard from '@/components/ExistingTermCard';
+import NewTermForm from '@/components/NewTermForm';
+import ReorderTermsModal from '@/components/ReorderTermsModal';
 
 export default function EditListPage() {
   const { id } = useParams();
@@ -15,28 +19,30 @@ export default function EditListPage() {
   const userId = useUserStore(state => state.user?.uid);
   const firebaseToken = useUserStore(state => state.firebaseToken);
   const isHydrated = useUserStore(state => state.isHydrated);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true); 
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('languages');
   const [isPublic, setIsPublic] = useState(false);
   const [terms, setTerms] = useState([]);
-  const [newTerm, setNewTerm] = useState({ 
-    term: '', 
-    definition: '', 
-    hint: '', 
-    termImage: '', 
-    definitionImage: '' 
+  const [newTerm, setNewTerm] = useState({
+    term: '',
+    definition: '',
+    hint: '',
+    termImage: '',
+    definitionImage: ''
   });
   const [uploadingImage, setUploadingImage] = useState(null);
   const [tempImages, setTempImages] = useState({}); // Para armazenar imagens temporárias
+  const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false);
 
   useEffect(() => {
     const checkAuthAndAuthorization = async () => {
-      if(!isHydrated) return;
-      
+      if (!isHydrated) return;
+
       if (!userId || !firebaseToken) {
         toast.error('Você precisa estar logado para editar uma lista.');
         router.push('/login');
@@ -79,10 +85,123 @@ export default function EditListPage() {
     }
   }, [id, userId, firebaseToken, router, isHydrated]);
 
-  const hasMinimumData = (data) => {
-    if (!data.title?.trim()) return false;
-    const validTerms = (data.terms || []).filter(t => t.term?.trim() && t.definition?.trim());
-    return validTerms.length > 0;
+  const handleBulkAddTerms = async (newTerms) => {
+    if (terms.length + newTerms.length > LIMITS.TOTAL_TERMS) {
+      toast.error(`Limite máximo de ${LIMITS.TOTAL_TERMS} termos atingido`);
+      return;
+    }
+
+    // Validação dos novos termos
+    for (const term of newTerms) {
+      if (!term.term.trim() || !term.definition.trim()) {
+        toast.error('Termo e definição são obrigatórios.');
+        return;
+      }
+      if (term.term.length > LIMITS.TERM) {
+        toast.error(`Termo deve ter no máximo ${LIMITS.TERM} caracteres`);
+        return;
+      }
+      if (term.definition.length > LIMITS.DEFINITION) {
+        toast.error(`Definição deve ter no máximo ${LIMITS.DEFINITION} caracteres`);
+        return;
+      }
+      if (term.hint && term.hint.length > LIMITS.TIP) {
+        toast.error(`Dica deve ter no máximo ${LIMITS.TIP} caracteres`);
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const termsWithProgress = newTerms.map(term => ({
+        ...term,
+        progress: userId ? [{ userId, status: 0 }] : []
+      }));
+
+      const updatedTerms = [...terms, ...termsWithProgress];
+      setTerms(updatedTerms);
+      await saveList({ terms: updatedTerms });
+
+      toast.success(`${newTerms.length} termo(s) adicionado(s)!`);
+    } catch (error) {
+      console.error('Erro ao adicionar termos em massa:', error);
+      toast.error('Erro ao adicionar termos');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removePerfectTerms = async () => {
+    const perfectTerms = terms.filter(term => {
+      return term.status === 6; // Status 6 = perfeito
+    });
+
+    if (perfectTerms.length === 0) {
+      toast.info('Nenhum termo com status perfeito encontrado');
+      return;
+    }
+
+    if (!confirm(`Excluir ${perfectTerms.length} termo(s) com status perfeito? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Primeiro, exclui as imagens do Cloudinary dos termos perfeitos
+      const imagesToDelete = perfectTerms.flatMap(term =>
+        [term.termImage, term.definitionImage].filter(Boolean)
+      );
+
+      if (imagesToDelete.length > 0) {
+        try {
+          const deletePromises = imagesToDelete.map(imageUrl =>
+            fetch('/api/upload', {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ imageUrl }),
+            }).then(res => {
+              if (!res.ok) {
+                console.warn(`Não foi possível excluir imagem: ${imageUrl}`);
+              }
+              return res;
+            })
+          );
+
+          await Promise.all(deletePromises);
+        } catch (error) {
+          console.warn('Erro ao excluir imagens:', error);
+        }
+      }
+
+      // Filtra os termos, mantendo apenas os não perfeitos
+      const updatedTerms = terms.filter(term => {
+        return term.status !== 6; // Mantém apenas os não perfeitos
+      });
+
+      setTerms(updatedTerms);
+
+      // ⚠️ IMPORTANTE: Envia os termos com progresso preservado
+      await saveList({
+        terms: updatedTerms.map(term => ({
+          term: term.term,
+          definition: term.definition,
+          hint: term.hint,
+          termImage: term.termImage,
+          definitionImage: term.definitionImage,
+          progress: term.progress || [] // ← PRESERVA O PROGRESSO
+        }))
+      });
+
+      toast.success(`${perfectTerms.length} termo(s) perfeito(s) excluído(s)!`);
+
+    } catch (error) {
+      console.error('Erro ao excluir termos perfeitos:', error);
+      toast.error('Erro ao excluir termos perfeitos');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const saveList = async (updatedData) => {
@@ -100,6 +219,22 @@ export default function EditListPage() {
       terms,
       ...updatedData
     };
+
+    // Validações de limite antes de salvar
+    if (title && title.length > LIMITS.TITLE) {
+      toast.error(`Título deve ter no máximo ${LIMITS.TITLE} caracteres`);
+      return;
+    }
+
+    if (description && description.length > LIMITS.DESCRIPTION) {
+      toast.error(`Descrição deve ter no máximo ${LIMITS.DESCRIPTION} caracteres`);
+      return;
+    }
+
+    if (mergedData.terms && mergedData.terms.length > LIMITS.TOTAL_TERMS) {
+      toast.error(`Limite máximo de ${LIMITS.TOTAL_TERMS} termos atingido`);
+      return;
+    }
 
     if (!hasMinimumData(mergedData)) {
       toast.error('Título e pelo menos um termo com definição são obrigatórios.');
@@ -140,26 +275,30 @@ export default function EditListPage() {
   };
 
   const handleImageUpload = async (file, index, field) => {
-    if (!file) return;
-    
+    if (!file || !userId || !id) return;
+
     setUploadingImage(`${index}-${field}`);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      
-      const res = await fetch('/api/upload', { 
-        method: 'POST', 
-        body: formData 
+      formData.append('folder', 'terms');
+      formData.append('userId', userId);
+      formData.append('listId', id); // ← Adiciona listId
+      formData.append('previousImageUrl', terms[index][field]); // ← Imagem anterior
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
       });
-      
+
       if (!res.ok) throw new Error((await res.json()).error);
-      
+
       const data = await res.json();
       const updated = [...terms];
       updated[index] = { ...updated[index], [field]: data.url };
       setTerms(updated);
       saveList({ terms: updated });
-      
+
     } catch (err) {
       toast.error('Erro ao enviar imagem');
     } finally {
@@ -167,72 +306,59 @@ export default function EditListPage() {
     }
   };
 
-  const handleNewTermImageSelect = (file, field) => {
-    if (!file) return;
-    
-    // Armazena a imagem temporariamente sem fazer upload
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setTempImages(prev => ({
-        ...prev,
-        [field]: {
-          file,
-          preview: e.target.result
-        }
-      }));
-    };
-    reader.readAsDataURL(file);
-  };
+  const handleRemoveImage = async (index, field) => {
+    const imageUrl = terms[index][field];
+    if (!imageUrl) return;
 
-  const handleRemoveImage = (index, field) => {
-    const updated = [...terms];
-    updated[index] = { ...updated[index], [field]: '' };
-    setTerms(updated);
-    saveList({ terms: updated });
-  };
+    try {
+      // Chama a API para excluir a imagem do Cloudinary
+      const deleteRes = await fetch('/api/upload', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl }),
+      });
 
-  const handleRemoveNewTermImage = (field) => {
-    setNewTerm(prev => ({ ...prev, [field]: '' }));
-    setTempImages(prev => {
-      const newTemp = { ...prev };
-      delete newTemp[field];
-      return newTemp;
-    });
-  };
-
-  const uploadTempImages = async () => {
-    const uploadPromises = [];
-    const newTermData = { ...newTerm };
-
-    // Upload das imagens temporárias
-    for (const [field, tempImage] of Object.entries(tempImages)) {
-      if (tempImage.file) {
-        uploadPromises.push(
-          (async () => {
-            const formData = new FormData();
-            formData.append('file', tempImage.file);
-            
-            const res = await fetch('/api/upload', { 
-              method: 'POST', 
-              body: formData 
-            });
-            
-            if (!res.ok) throw new Error((await res.json()).error);
-            
-            const data = await res.json();
-            newTermData[field] = data.url;
-          })()
-        );
+      if (!deleteRes.ok) {
+        console.warn('Não foi possível excluir a imagem do Cloudinary');
       }
-    }
 
-    await Promise.all(uploadPromises);
-    return newTermData;
+      // Atualiza o estado local
+      const updated = [...terms];
+      updated[index] = { ...updated[index], [field]: '' };
+      setTerms(updated);
+      saveList({ terms: updated });
+
+    } catch (error) {
+      console.error('Erro ao remover imagem:', error);
+      toast.error('Erro ao remover imagem');
+    }
   };
 
   const addTerm = async () => {
+    if (terms.length >= LIMITS.TOTAL_TERMS) {
+      toast.error(`Limite máximo de ${LIMITS.TOTAL_TERMS} termos atingido`);
+      return;
+    }
+
     if (!newTerm.term.trim() || !newTerm.definition.trim()) {
       toast.error('Termo e definição são obrigatórios.');
+      return;
+    }
+
+    if (newTerm.term.length > LIMITS.TERM) {
+      toast.error(`Termo deve ter no máximo ${LIMITS.TERM} caracteres`);
+      return;
+    }
+
+    if (newTerm.definition.length > LIMITS.DEFINITION) {
+      toast.error(`Definição deve ter no máximo ${LIMITS.DEFINITION} caracteres`);
+      return;
+    }
+
+    if (newTerm.hint && newTerm.hint.length > LIMITS.TIP) {
+      toast.error(`Dica deve ter no máximo ${LIMITS.TIP} caracteres`);
       return;
     }
 
@@ -240,31 +366,30 @@ export default function EditListPage() {
     try {
       let finalTermData = { ...newTerm };
 
-      // Se houver imagens temporárias, faz o upload
       if (Object.keys(tempImages).length > 0) {
         finalTermData = await uploadTempImages();
       }
 
       const updatedTerms = [
         ...terms,
-        { 
-          ...finalTermData, 
-          progress: userId ? [{ userId, status: 0 }] : [] 
+        {
+          ...finalTermData,
+          progress: userId ? [{ userId, status: 0 }] : []
         }
       ];
-      
+
       setTerms(updatedTerms);
-      setNewTerm({ 
-        term: '', 
-        definition: '', 
-        hint: '', 
-        termImage: '', 
-        definitionImage: '' 
+      setNewTerm({
+        term: '',
+        definition: '',
+        hint: '',
+        termImage: '',
+        definitionImage: ''
       });
       setTempImages({});
-      
+
       await saveList({ terms: updatedTerms });
-      
+
     } catch (err) {
       toast.error('Erro ao adicionar termo com imagens');
     } finally {
@@ -272,20 +397,84 @@ export default function EditListPage() {
     }
   };
 
-  const removeTerm = (index) => {
+  const removeTerm = async (index) => {
     if (!confirm('Excluir este termo?')) return;
-    
-    const updated = [...terms];
-    updated.splice(index, 1);
-    setTerms(updated);
-    saveList({ terms: updated });
+
+    try {
+      const termToRemove = terms[index];
+
+      // Exclui as imagens do Cloudinary se existirem
+      const imagesToDelete = [termToRemove.termImage, termToRemove.definitionImage].filter(Boolean);
+
+      if (imagesToDelete.length > 0) {
+        // Exclui todas as imagens em paralelo
+        const deletePromises = imagesToDelete.map(imageUrl =>
+          fetch('/api/upload', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ imageUrl }),
+          }).then(res => {
+            if (!res.ok) {
+              console.warn(`Não foi possível excluir imagem: ${imageUrl}`);
+            }
+            return res;
+          }).catch(error => {
+            console.error('Erro ao excluir imagem:', error);
+            return null;
+          })
+        );
+
+        await Promise.all(deletePromises);
+      }
+
+      // Atualiza o estado local
+      const updated = [...terms];
+      updated.splice(index, 1);
+      setTerms(updated);
+      saveList({ terms: updated });
+
+    } catch (error) {
+      console.error('Erro ao remover termo:', error);
+      toast.error('Erro ao remover termo');
+    }
+  };
+
+  const handleReorderTerms = (reorderedTerms) => {
+    setTerms(reorderedTerms);
+    saveList({ terms: reorderedTerms });
   };
 
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir esta lista? Esta ação não pode ser desfeita.')) return;
-    
+
     setIsSaving(true);
     try {
+      // Primeiro, exclui todas as imagens da lista do Cloudinary
+      const allImages = terms.flatMap(term =>
+        [term.termImage, term.definitionImage].filter(Boolean)
+      );
+
+      if (allImages.length > 0) {
+        const deleteRes = await fetch('/api/upload/delete-folder', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${firebaseToken}`,
+          },
+          body: JSON.stringify({
+            folderPath: `terms/${userId}/${id}`,
+            images: allImages
+          }),
+        });
+
+        if (!deleteRes.ok) {
+          console.warn('Não foi possível excluir todas as imagens do Cloudinary');
+        }
+      }
+
+      // Depois exclui a lista do banco de dados
       const res = await fetch(`/api/lists/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${firebaseToken}` },
@@ -304,324 +493,150 @@ export default function EditListPage() {
     }
   };
 
+  const perfectTermsCount = terms.filter(term => {
+    return term.status === 6; // Status 6 = perfeito
+  }).length;
+
   if (isCheckingAuth || !isHydrated) {
     return <LoadingSpinner message='Verificando permissões...' />;
   }
 
   return (
-  <>
-    <BackButton />
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-6 text-[--primary-text]">Editar Lista</h1>
+    <>
+      <BackButton listId={id} />
+      <div className="max-w-2xl mx-auto p-6">
+        {/* Cabeçalho com título e botões */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">Editar Lista</h1>
+          <div className="flex items-center gap-2">
+            {/* Botão de adicionar em massa - MOVIDO PARA CÁ */}
+            <button
+              onClick={() => setIsBulkAddModalOpen(true)}
+              disabled={terms.length >= LIMITS.TOTAL_TERMS}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+              title="Adicionar múltiplos termos de uma vez"
+            >
+              <FiFileText size={16} />
+              Adicionar em Massa
+            </button>
 
-      {/* Campos da lista */}
-      <div className="space-y-4 mb-8">
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={() => saveList({ title })}
-          placeholder="Título da lista *"
-          className="w-full border border-indigo-500/30 bg-[#24243e] text-[--primary-text] px-4 py-3 rounded-lg text-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-        />
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          onBlur={() => saveList({ description })}
-          placeholder="Descrição da lista"
-          className="w-full border border-indigo-500/30 bg-[#24243e] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-        <div>
-          <label className="block mb-2 text-sm font-medium text-gray-300">Categoria:</label>
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            onBlur={() => saveList({ category })}
-            className="w-full border border-indigo-500/30 bg-[#24243e] text-[--primary-text] rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          >
-            {CATEGORIES.slice(1).map(cat => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
+            {/* Botão de excluir lista */}
+            <button
+              onClick={handleDelete}
+              disabled={isSaving}
+              className="bg-red-600 hover:bg-red-500 text-white py-2 px-4 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-colors text-sm"
+            >
+              <FiTrash2 size={16} /> {isSaving ? 'Excluindo...' : 'Excluir Lista'}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#24243e] border border-indigo-500/30">
+
+        {/* Campos da lista */}
+        <div className="space-y-4 mb-8">
           <input
-            type="checkbox"
-            id="isPublic"
-            checked={isPublic}
-            onChange={e => setIsPublic(e.target.checked)}
-            onBlur={() => saveList({ public: isPublic })}
-            className="w-5 h-5 text-indigo-500 bg-[#2d2b42] border-gray-600 rounded focus:ring-2 focus:ring-indigo-500"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onBlur={() => saveList({ title })}
+            placeholder="Título da lista *"
+            className="w-full border border-indigo-500/30 bg-[#24243e] px-4 py-3 rounded-lg text-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
-          <label htmlFor="isPublic" className="text-sm font-medium text-gray-300">
-            Lista pública
-          </label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            onBlur={() => saveList({ description })}
+            placeholder="Descrição da lista"
+            className="w-full border border-indigo-500/30 bg-[#24243e] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            rows={3}
+          />
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-300">Categoria:</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              onBlur={() => saveList({ category })}
+              className="w-full border border-indigo-500/30 bg-[#24243e] rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            >
+              {CATEGORIES.slice(1).map(cat => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-[#24243e] border border-indigo-500/30">
+            <input
+              type="checkbox"
+              id="isPublic"
+              checked={isPublic}
+              onChange={e => setIsPublic(e.target.checked)}
+              onBlur={() => saveList({ public: isPublic })}
+              className="w-5 h-5 text-indigo-500 bg-[#2d2b42] border-gray-600 rounded focus:ring-2 focus:ring-indigo-500"
+            />
+            <label htmlFor="isPublic" className="text-sm font-medium text-gray-300">
+              Lista pública
+            </label>
+          </div>
         </div>
-      </div>
 
-      {/* Termos existentes */}
-      <div className="space-y-6 mb-8">
-        <h2 className="text-xl font-semibold flex items-center gap-2 text-[--primary-text]">
-          <FiPlus className="text-emerald-400" />
-          Termos ({terms.length})
-        </h2>
-        
-        {terms.map((term, i) => (
-          <div key={i} className="border border-indigo-500/20 p-6 rounded-xl space-y-4 bg-[#24243e] shadow-lg transition-all hover:border-indigo-500/40">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-300">Termo *</label>
-                <textarea
-                  value={term.term}
-                  onChange={e => handleTermChange(i, 'term', e.target.value)}
-                  onBlur={handleTermBlur}
-                  placeholder="Digite o termo"
-                  className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-300">Definição *</label>
-                <textarea
-                  value={term.definition}
-                  onChange={e => handleTermChange(i, 'definition', e.target.value)}
-                  onBlur={handleTermBlur}
-                  placeholder="Digite a definição"
-                  className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  rows={3}
-                />
-              </div>
-            </div>
+        {/* Termos existentes */}
+        <div className='space-y-6 mb-8'>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <FiPlus className="text-emerald-400" />
+              Termos ({terms.length})
+              {perfectTermsCount > 0 && (
+                <span className="text-sm font-normal text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded-full">
+                  {perfectTermsCount} perfeito(s)
+                </span>
+              )}
+            </h2>
 
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-300">Dica (opcional)</label>
-              <input
-                value={term.hint}
-                onChange={e => handleTermChange(i, 'hint', e.target.value)}
-                onBlur={handleTermBlur}
-                placeholder="Dica para ajudar a lembrar"
-                className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              />
-            </div>
-            
-            {/* Imagens do termo existente */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block mb-2 text-sm font-medium flex items-center gap-2 text-gray-300">
-                  <FiImage className="text-blue-400" />
-                  Imagem do termo
-                </label>
-                {term.termImage ? (
-                  <div className="flex items-center gap-3 p-3 border border-indigo-500/30 rounded-lg bg-[#2d2b55]">
-                    <img src={term.termImage} alt="" className="w-16 h-16 object-cover rounded" />
-                    <button 
-                      onClick={() => handleRemoveImage(i, 'termImage')} 
-                      className="text-red-400 hover:text-red-300 flex items-center gap-1 text-sm transition-colors"
-                    >
-                      <FiTrash2 /> Remover
-                    </button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-indigo-500/30 rounded-lg p-4 text-center hover:border-indigo-500/50 transition-colors">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={e => handleImageUpload(e.target.files[0], i, 'termImage')}
-                      className="hidden"
-                      id={`term-image-${i}`}
-                    />
-                    <label 
-                      htmlFor={`term-image-${i}`}
-                      className="cursor-pointer flex flex-col items-center text-gray-400 hover:text-gray-300 transition-colors"
-                    >
-                      <FiUpload className="w-6 h-6 mb-2" />
-                      <span className="text-sm">Clique para upload</span>
-                    </label>
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <label className="block mb-2 text-sm font-medium flex items-center gap-2 text-gray-300">
-                  <FiImage className="text-green-400" />
-                  Imagem da definição
-                </label>
-                {term.definitionImage ? (
-                  <div className="flex items-center gap-3 p-3 border border-indigo-500/30 rounded-lg bg-[#2d2b55]">
-                    <img src={term.definitionImage} alt="" className="w-16 h-16 object-cover rounded" />
-                    <button 
-                      onClick={() => handleRemoveImage(i, 'definitionImage')} 
-                      className="text-red-400 hover:text-red-300 flex items-center gap-1 text-sm transition-colors"
-                    >
-                      <FiTrash2 /> Remover
-                    </button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-indigo-500/30 rounded-lg p-4 text-center hover:border-indigo-500/50 transition-colors">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={e => handleImageUpload(e.target.files[0], i, 'definitionImage')}
-                      className="hidden"
-                      id={`definition-image-${i}`}
-                    />
-                    <label 
-                      htmlFor={`definition-image-${i}`}
-                      className="cursor-pointer flex flex-col items-center text-gray-400 hover:text-gray-300 transition-colors"
-                    >
-                      <FiUpload className="w-6 h-6 mb-2" />
-                      <span className="text-sm">Clique para upload</span>
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex justify-end pt-2">
-              <button 
-                onClick={() => removeTerm(i)} 
-                className="text-red-400 hover:text-red-300 flex items-center gap-2 text-sm font-medium transition-colors"
+            <div className="flex items-center gap-2">
+              {/* Botão de excluir termos perfeitos */}
+              <button
+                onClick={removePerfectTerms}
+                disabled={isSaving || !perfectTermsCount}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                title="Excluir termos já dominados (status perfeito)"
               >
-                <FiTrash2 /> Excluir termo
+                <FiTrash2 size={16} />
+                Limpar Perfeitos
               </button>
+
+              {terms.length > 1 && (
+                <button
+                  onClick={() => setIsReorderModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                >
+                  <FiMove size={16} />
+                  Reordenar
+                </button>
+              )}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Novo termo */}
-      <div className="border-2 border-dashed border-emerald-500/50 p-6 rounded-xl space-y-4 mb-8 bg-emerald-900/20">
-        <h3 className="text-lg font-semibold flex items-center gap-2 text-emerald-300">
-          <FiPlus /> Adicionar novo termo
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block mb-2 text-sm font-medium text-gray-300">Termo *</label>
-            <textarea
-              value={newTerm.term}
-              onChange={e => setNewTerm({ ...newTerm, term: e.target.value })}
-              placeholder="Digite o termo"
-              className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              rows={3}
+          {terms.map((term, i) => (
+            <ExistingTermCard
+              key={i}
+              term={term}
+              index={i}
+              onTermChange={handleTermChange}
+              onTermBlur={handleTermBlur}
+              onImageUpload={handleImageUpload}
+              onRemoveImage={handleRemoveImage}
+              onRemoveTerm={removeTerm}
             />
-          </div>
-          <div>
-            <label className="block mb-2 text-sm font-medium text-gray-300">Definição *</label>
-            <textarea
-              value={newTerm.definition}
-              onChange={e => setNewTerm({ ...newTerm, definition: e.target.value })}
-              placeholder="Digite a definição"
-              className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              rows={3}
-            />
-          </div>
+          ))}
         </div>
 
-        <div>
-          <label className="block mb-2 text-sm font-medium text-gray-300">Dica (opcional)</label>
-          <input
-            value={newTerm.hint}
-            onChange={e => setNewTerm({ ...newTerm, hint: e.target.value })}
-            placeholder="Dica para ajudar a lembrar"
-            className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block mb-2 text-sm font-medium flex items-center gap-2 text-gray-300">
-              <FiImage className="text-blue-400" />
-              Imagem do termo
-            </label>
-            {tempImages.termImage ? (
-              <div className="flex items-center gap-3 p-3 border border-indigo-500/30 rounded-lg bg-[#2d2b55]">
-                <img src={tempImages.termImage.preview} alt="" className="w-16 h-16 object-cover rounded" />
-                <button 
-                  onClick={() => handleRemoveNewTermImage('termImage')} 
-                  className="text-red-400 hover:text-red-300 flex items-center gap-1 text-sm transition-colors"
-                >
-                  <FiX /> Remover
-                </button>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-indigo-500/30 rounded-lg p-4 text-center hover:border-indigo-500/50 transition-colors">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={e => handleNewTermImageSelect(e.target.files[0], 'termImage')}
-                  className="hidden"
-                  id="new-term-image"
-                />
-                <label 
-                  htmlFor="new-term-image"
-                  className="cursor-pointer flex flex-col items-center text-gray-400 hover:text-gray-300 transition-colors"
-                >
-                  <FiUpload className="w-6 h-6 mb-2" />
-                  <span className="text-sm">Selecionar imagem</span>
-                </label>
-              </div>
-            )}
-          </div>
-          
-          <div>
-            <label className="block mb-2 text-sm font-medium flex items-center gap-2 text-gray-300">
-              <FiImage className="text-green-400" />
-              Imagem da definição
-            </label>
-            {tempImages.definitionImage ? (
-              <div className="flex items-center gap-3 p-3 border border-indigo-500/30 rounded-lg bg-[#2d2b55]">
-                <img src={tempImages.definitionImage.preview} alt="" className="w-16 h-16 object-cover rounded" />
-                <button 
-                  onClick={() => handleRemoveNewTermImage('definitionImage')} 
-                  className="text-red-400 hover:text-red-300 flex items-center gap-1 text-sm transition-colors"
-                >
-                  <FiX /> Remover
-                </button>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-indigo-500/30 rounded-lg p-4 text-center hover:border-indigo-500/50 transition-colors">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={e => handleNewTermImageSelect(e.target.files[0], 'definitionImage')}
-                  className="hidden"
-                  id="new-definition-image"
-                />
-                <label 
-                  htmlFor="new-definition-image"
-                  className="cursor-pointer flex flex-col items-center text-gray-400 hover:text-gray-300 transition-colors"
-                >
-                  <FiUpload className="w-6 h-6 mb-2" />
-                  <span className="text-sm">Selecionar imagem</span>
-                </label>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex justify-end">
-          <button 
-            onClick={addTerm} 
-            disabled={!newTerm.term.trim() || !newTerm.definition.trim() || isSaving}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 px-6 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-colors"
-          >
-            <FiPlus /> {isSaving ? 'Adicionando...' : 'Adicionar Termo'}
-          </button>
-        </div>
-      </div>
-
-      {/* Botão de exclusão */}
-      <div className="border-t border-indigo-500/20 pt-6">
-        <button 
-          onClick={handleDelete} 
-          disabled={isSaving}
-          className="bg-red-600 hover:bg-red-500 text-white py-3 px-6 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-colors"
-        >
-          <FiTrash2 /> {isSaving ? 'Excluindo...' : 'Excluir Lista'}
-        </button>
+        {/* Novo termo */}
+        <NewTermForm
+          newTerm={newTerm}
+          setNewTerm={setNewTerm}
+          tempImages={tempImages}
+          onAddTerm={addTerm}
+          isSaving={isSaving}
+        />
       </div>
 
       {uploadingImage && (
@@ -631,7 +646,20 @@ export default function EditListPage() {
           </div>
         </div>
       )}
-    </div>
-  </>
-);
+
+      <ReorderTermsModal
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+        terms={terms}
+        onReorder={handleReorderTerms}
+      />
+      <BulkAddTermsModal
+        isOpen={isBulkAddModalOpen}
+        onClose={() => setIsBulkAddModalOpen(false)}
+        onAddTerms={handleBulkAddTerms}
+        existingTermsCount={terms.length}
+        maxTerms={LIMITS.TOTAL_TERMS}
+      />
+    </>
+  );
 }

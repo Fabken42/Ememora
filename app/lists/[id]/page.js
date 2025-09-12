@@ -1,13 +1,13 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import TermCard from '@/components/TermCard'
 import toast from 'react-hot-toast'
 import useUserStore from '@/store/useUserStore'
 import BackButton from '@/components/BackButton'
-import { TERM_PAGE_SIZE } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { FiChevronLeft, FiChevronRight, FiEdit, FiLayers, FiPlay } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiEdit, FiLayers, FiPlay, FiChevronsLeft, FiChevronsRight, FiRefreshCw } from 'react-icons/fi'
+import { getPageNumbers } from '@/lib/utils'
 
 export default function TermListPage() {
   const { id } = useParams()
@@ -19,19 +19,11 @@ export default function TermListPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isListAuthor, setIsListAuthor] = useState(false)
+  const [totalProgress, setTotalProgress] = useState(0)
   const { firebaseToken, isHydrated, user } = useUserStore()
   const router = useRouter()
 
-  // Cálculo do progresso
-  const progress = useMemo(() => {
-    const totalTerms = terms.length || 0
-    const max = totalTerms * 6
-    const current = terms.reduce((acc, term) => {
-      const status = term.myStatus ?? term.status ?? 0
-      return acc + (typeof status === 'number' ? status : 0)
-    }, 0) || 0
-    return max > 0 ? Math.round((current / max) * 100) : 0
-  }, [terms])
+
 
   useEffect(() => {
     if (!isHydrated || !id) return;
@@ -44,7 +36,7 @@ export default function TermListPage() {
         }
 
         const res = await fetch(
-          `/api/lists/${id}?page=${page}&pageSize=${TERM_PAGE_SIZE}`,
+          `/api/lists/${id}?page=${page}&sort=${sortOption}`,
           { headers }
         )
 
@@ -64,6 +56,7 @@ export default function TermListPage() {
         setTitle(data.title || '')
         setDescription(data.description || '')
         setTotalPages(data.totalPages || 1)
+        setTotalProgress(data.totalProgress || 0)
         setIsListAuthor(user?.uid === data.ownerUid)
       } catch (err) {
         console.error('Erro ao buscar termos:', err)
@@ -71,7 +64,7 @@ export default function TermListPage() {
       }
     }
     fetchTerms()
-  }, [id, firebaseToken, page, router])
+  }, [id, firebaseToken, page, router, sortOption])
 
 
   const resetStatus = async () => {
@@ -98,33 +91,14 @@ export default function TermListPage() {
         throw new Error(err.error || 'Erro ao resetar status')
       }
 
-      const data = await res.json()
-      setTerms(data.terms || [])
-      toast.success('Status resetados com sucesso!')
+      // Recarrega a página completamente
+      window.location.reload()
+
     } catch (err) {
       console.error('Erro ao resetar status:', err)
       toast.error(err.message || 'Erro ao resetar status')
-    } finally {
       setLoadingReset(false)
     }
-  }
-
-  const getSortedTerms = () => {
-    let sorted = [...terms]
-    switch (sortOption) {
-      case 'random':
-        sorted.sort(() => Math.random() - 0.5)
-        break
-      case 'best':
-        sorted.sort((a, b) => (b.status || 0) - (a.status || 0))
-        break
-      case 'worst':
-        sorted.sort((a, b) => (a.status || 0) - (b.status || 0))
-        break
-      default:
-        break
-    }
-    return sorted
   }
 
   return (
@@ -132,32 +106,35 @@ export default function TermListPage() {
       <BackButton className="mb-4" />
       <div className="p-4 max-w-3xl mx-auto space-y-6">
         {/* Header Section */}
-        <div className="flex flex-col items-center text-center gap-3 mb-8 p-6 rounded-xl bg-[#24243e] border border-indigo-500/20 shadow-lg">
-          <h1 className="text-3xl font-bold text-[--primary-text]">{title || 'Lista de Termos'}</h1>
-          <p className="text-gray-300 max-w-2xl">{description}</p>
-
-          {/* Barra de Progresso */}
-          <div className="w-full max-w-md mt-4">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm font-medium text-gray-300">Progresso</span>
-              <span className="text-sm text-gray-300">{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2.5">
-              <div
-                className="bg-indigo-500 h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
+        <div className="flex flex-col items-center text-center gap-3 mb-8 p-6 rounded-xl bg-[#24243e] border border-indigo-500/20 shadow-lg relative">
 
           {/* Reset Button */}
           <button
             onClick={resetStatus}
             disabled={loadingReset}
-            className="bg-[#2d2b55] hover:bg-[#3a3780] text-gray-200 px-4 py-2 rounded-lg border border-indigo-500/30 transition-colors disabled:opacity-50 mt-4"
+            className="absolute top-4 right-4 bg-[#2d2b55] hover:bg-[#3a3780] text-gray-200 px-3 py-2 rounded-lg border border-indigo-500/30 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+            title="Resetar progresso"
           >
-            {loadingReset ? 'Resetando...' : 'Resetar Progresso'}
+            <FiRefreshCw className="w-4 h-4" /> 
+            {loadingReset ? 'Resetando...' : 'Resetar progresso'}
           </button>
+
+          <h1 className="text-3xl font-bold break-all">{title || 'Lista de Termos'}</h1>
+          <p className="text-gray-300 max-w-2xl break-all">{description}</p>
+
+          {/* Barra de Progresso */}
+          <div className="w-full max-w-md mt-4">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-sm font-medium text-gray-300">Progresso</span>
+              <span className="text-sm text-gray-300">{totalProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2.5">
+              <div
+                className="bg-indigo-500 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${totalProgress}%` }}
+              ></div>
+            </div>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap justify-center gap-3 mt-4">
@@ -188,42 +165,99 @@ export default function TermListPage() {
             <label className="text-gray-300 font-medium">Ordenar por:</label>
             <select
               value={sortOption}
-              onChange={e => setSortOption(e.target.value)}
+              onChange={e => {
+                setSortOption(e.target.value)
+                setPage(1)
+              }}
               className="border border-indigo-500/30 rounded-lg px-4 py-2 bg-[#24243e] text-[--primary-text] focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
             >
               <option value="worst">Pior status primeiro</option>
               <option value="best">Melhor status primeiro</option>
               <option value="normal">Ordem original</option>
-              <option value="random">Ordem aleatória</option>
             </select>
           </div>
         </div>
 
         {/* Terms Grid */}
         <div className="grid gap-4">
-          {getSortedTerms().map(term => (
-            <TermCard key={term._id || term.id} term={term} isAuthenticated={!!firebaseToken} />
+          {terms.map(term => (
+            <TermCard key={term._id} term={term} isAuthenticated={!!firebaseToken} />
           ))}
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-4 mt-6 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
-          <button
-            onClick={() => setPage(prev => Math.max(1, prev - 1))}
-            disabled={page <= 1}
-            className="px-4 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-2"
-          >
-            <FiChevronLeft className="w-4 h-4" /> Anterior
-          </button>
-          <span className="text-gray-300">Página {page} de {totalPages}</span>
-          <button
-            onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={page >= totalPages}
-            className="px-4 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-2"
-          >
-            Próxima <FiChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+        {totalPages > 1 && (
+          <div className="flex flex-col items-center gap-4 mt-6 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
+
+            {/* Controles de navegação */}
+            <div className="flex flex-wrap justify-center items-center gap-2">
+              {/* Primeira página */}
+              <button
+                onClick={() => setPage(1)}
+                disabled={page <= 1}
+                className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                title="Primeira página"
+              >
+                <FiChevronsLeft className="w-3 h-3" />
+              </button>
+
+              {/* Página anterior */}
+              <button
+                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                title="Página anterior"
+              >
+                <FiChevronLeft className="w-3 h-3" />
+              </button>
+
+              {/* Números de página */}
+              {getPageNumbers(page, totalPages).map((pageNum, index) => (
+                pageNum === '...' ? (
+                  <span key={`dots-${index}`} className="px-2 text-gray-400">
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-2 rounded-lg border transition-colors ${page === pageNum
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'bg-[#2d2b55] border-indigo-500/30 text-gray-200 hover:bg-[#3a3780]'
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              ))}
+
+              {/* Próxima página */}
+              <button
+                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                title="Próxima página"
+              >
+                <FiChevronRight className="w-3 h-3" />
+              </button>
+
+              {/* Última página */}
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages}
+                className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                title="Última página"
+              >
+                <FiChevronsRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Info */}
+            <div className="text-gray-300 text-sm">
+              Página {page} de {totalPages}
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

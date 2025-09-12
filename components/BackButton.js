@@ -4,20 +4,29 @@ import { useRouter, usePathname } from 'next/navigation';
 import useNavigationStore from '@/store/useNavigationStore';
 import { FiArrowLeft } from 'react-icons/fi';
 
-export default function BackButton({ uid }) {
+export default function BackButton({ listId = null }) {
   const router = useRouter();
   const pathname = usePathname();
   const lastHomeOrUserPage = useNavigationStore(state => state.lastHomeOrUserPage);
 
   const handleBack = () => {
+    // Prioridade 1: Se listId foi passado como prop, redireciona para a página da lista
+    if (listId) {
+      router.push(`/lists/${listId}`);
+      return;
+    }
+
+    // Prioridade 2: Se está em páginas de estudo, volta para a página anterior
     if (
       pathname.match(/^\/study\/[^/]+\/flashcard$/) ||
       pathname.match(/^\/study\/[^/]+\/quiz$/)
     ) {
       router.back();
-    } else {
-      router.push(lastHomeOrUserPage);
+      return;
     }
+
+    // Prioridade 3: Redireciona para a última página home/user salva
+    router.push(lastHomeOrUserPage);
   };
 
   return (

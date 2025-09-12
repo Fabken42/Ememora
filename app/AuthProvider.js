@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { getAuth, onAuthStateChanged } from 'firebase/auth'
+import { getAuth, onAuthStateChanged, onIdTokenChanged } from 'firebase/auth'
 import useUserStore from '@/store/useUserStore'
 
-// mesma função que você já usa no register/login
 async function createProfileIfMissing(user) {
   const token = await user.getIdToken()
 
@@ -66,16 +65,15 @@ export default function AuthProvider({ children }) {
   useEffect(() => {
     const auth = getAuth()
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    // Controle do estado do usuário
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // 🔴 Bloqueia usuários de email/senha que ainda não confirmaram o email
         if (!firebaseUser.emailVerified && firebaseUser.providerData[0]?.providerId === 'password') {
           setUser(null)
           setFirebaseToken(null)
           return
         }
 
-        // ✅ Cria/sincroniza perfil apenas se já validado
         const token = await firebaseUser.getIdToken()
         const profileData = await createProfileIfMissing(firebaseUser)
 
@@ -87,7 +85,20 @@ export default function AuthProvider({ children }) {
       }
     })
 
-    return () => unsubscribe()
+    // Atualização automática do token
+    const unsubscribeToken = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const newToken = await firebaseUser.getIdToken(true)
+        setFirebaseToken(newToken)
+      } else {
+        setFirebaseToken(null)
+      }
+    })
+
+    return () => {
+      unsubscribeAuth()
+      unsubscribeToken()
+    }
   }, [setUser, setFirebaseToken])
 
   return children

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
-import { STATUS_ICONS } from '@/lib/utils'
+import { getStatusInfo } from '@/lib/utils'
+import { Lightbulb } from 'lucide-react'
 
 export default function TermCard({ term, isAuthenticated }) {
   const [uid, setUid] = useState(null)
@@ -16,69 +17,62 @@ export default function TermCard({ term, isAuthenticated }) {
     return () => unsubscribe()
   }, [])
 
-  let status
-  if (typeof term?.myStatus === 'number') {
-    status = term.myStatus
-  } else if (Array.isArray(term?.progress) && uid) {
-    const p = term.progress.find(p => p.userId === uid)
-    status = p ? Number(p.status || 0) : 0
-  } else if (typeof term?.status === 'number') {
-    status = term.status
-  } else {
-    status = 0
-  }
-
-  // Garante que o índice esteja no intervalo 0-6
-  const clamped = Math.max(0, Math.min(STATUS_ICONS.length - 1, Number(status) || 0))
-  const { icon: StatusIcon, color } = STATUS_ICONS[clamped]
+  const status = term?.status || 0
+  const { StatusIcon, color } = getStatusInfo(status)
 
   return (
-  <div className="border border-gray-200 p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-    {/* Term Header */}
-    <div className="flex justify-between items-start gap-4 mb-4">
-      <h4 className="text-xl font-semibold text-gray-800 break-words flex-1">
-        {term.term}
-      </h4>
-      {isAuthenticated && <StatusIcon className={`text-3xl ${color} min-w-[24px]`} />}
+    <div className="border border-indigo-500/30 p-6 rounded-xl bg-[#24243e] shadow-lg hover:shadow-xl transition-all">
+      {/* Term Header */}
+      <div className="flex justify-between items-start gap-4 mb-4">
+        <h4 className="text-xl font-semibold break-all flex-1">
+          {term.term}
+        </h4>
+        {isAuthenticated && <StatusIcon className={`text-3xl ${color} min-w-[24px]`} />}
+      </div>
+
+      {/* Term Image */}
+      {term.termImage && (
+        <div className="mb-4 overflow-hidden rounded-lg bg-[#2d2b55] border border-indigo-500/30">
+          <img
+            src={term.termImage}
+            alt="Imagem do termo"
+            className="w-full h-auto max-h-60 object-contain mx-auto p-2"
+            loading="lazy"
+          />
+        </div>
+      )}
+
+      {/* Definition */}
+      <p className="text-gray-300 mb-4 whitespace-pre-line leading-relaxed break-all">
+        {term.definition}
+      </p>
+
+      {/* Definition Image */}
+      {term.definitionImage && (
+        <div className="mb-4 overflow-hidden rounded-lg bg-[#2d2b55] border border-indigo-500/30">
+          <img
+            src={term.definitionImage}
+            alt="Imagem da definição"
+            className="w-full h-auto max-h-60 object-contain mx-auto p-2"
+            loading="lazy"
+          />
+        </div>
+      )}
+
+      {/* Hint */}
+      {term.hint && (
+        <div className="mt-4 pt-4 border-t border-indigo-500/30">
+          <p className="text-sm text-indigo-300 italic flex items-start gap-2 break-all">
+            <span className="flex-shrink-0 mt-0.5">
+              <Lightbulb className="w-4 h-4 text-amber-400" />
+            </span>
+            <span>
+              <span className="font-medium text-amber-400">Dica:</span> {term.hint}
+            </span>
+          </p>
+        </div>
+      )}
     </div>
+  )
 
-    {/* Term Image */}
-    {term.termImage && (
-      <div className="mb-4 overflow-hidden rounded-lg bg-gray-100">
-        <img
-          src={term.termImage}
-          alt="Imagem do termo"
-          className="w-full h-auto max-h-60 object-contain mx-auto"
-          loading="lazy"
-        />
-      </div>
-    )}
-
-    {/* Definition */}
-    <p className="text-gray-700 mb-4 whitespace-pre-line">
-      {term.definition}
-    </p>
-
-    {/* Definition Image */}
-    {term.definitionImage && (
-      <div className="mb-4 overflow-hidden rounded-lg bg-gray-100">
-        <img
-          src={term.definitionImage}
-          alt="Imagem da definição"
-          className="w-full h-auto max-h-60 object-contain mx-auto"
-          loading="lazy"
-        />
-      </div>
-    )}
-
-    {/* Hint */}
-    {term.hint && (
-      <div className="mt-4 pt-3 border-t border-gray-100">
-        <p className="text-sm text-gray-500 italic">
-          <span className="font-medium text-gray-600">Dica:</span> {term.hint}
-        </p>
-      </div>
-    )}
-  </div>
-)
 }

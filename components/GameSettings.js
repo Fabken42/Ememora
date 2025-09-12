@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import useGameSettingsStore from '@/store/useGameSettingsStore'
 import { FiPlay } from 'react-icons/fi'
-import BackButton from './BackButton'
 
 export default function GameSettings({ onStart, listInfo }) {
   const {
@@ -37,8 +36,6 @@ export default function GameSettings({ onStart, listInfo }) {
   }
 
   return (
-    <>
-    <BackButton/>
     <form
       onSubmit={handleSubmit}
       className="p-6 bg-[#24243e] rounded-xl border border-indigo-500/20 shadow-lg space-y-6"
@@ -118,7 +115,5 @@ export default function GameSettings({ onStart, listInfo }) {
         </p>
       )}
     </form>
-    </>
-
   )
 }

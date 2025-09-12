@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import ListCard from '@/components/ListCard'
-import { CATEGORIES, LIST_ORDER_BY, LISTS_PAGE_SIZE } from '@/lib/utils'
+import { CATEGORIES, getPageNumbers, LIST_ORDER_BY, LISTS_PAGE_SIZE, LIMITS } from '@/lib/utils'
 import useNavigationStore from '@/store/useNavigationStore'
 import useUserStore from '@/store/useUserStore'
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight, FiFilter, FiInbox } from 'react-icons/fi'
+import AdvancedSearchModal from '@/components/AdvancedSearchModal'
+import { useSearchParams } from 'next/navigation'
 
 export default function HomePage() {
   const { setLastHomeOrUserPage } = useNavigationStore()
   const { user, firebaseToken } = useUserStore()
+  const searchParams = useSearchParams()
 
   const [lists, setLists] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,37 +21,59 @@ export default function HomePage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
+  const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState({
+    minProgress: 0,
+    maxProgress: 100,
+    minTerms: 0,
+    maxTerms: LIMITS.TOTAL_TERMS,
+    minLikes: 0,
+    minApprovalRate: 0
+  });
+
+  const searchQuery = searchParams.get('search') || ''
+
   useEffect(() => {
     setLastHomeOrUserPage('/')
   }, [setLastHomeOrUserPage])
 
   useEffect(() => {
     const fetchLists = async () => {
-      setLoading(true)
+      setLoading(true);
       try {
-        const catParam = category !== 'all' ? `&category=${category}` : ''
-        const sortParam = sortBy ? `&sortBy=${sortBy}` : ''
-        const uidParam = user?.uid ? `&uid=${user.uid}` : ''
+        const catParam = category !== 'all' ? `&category=${category}` : '';
+        const sortParam = sortBy ? `&sortBy=${sortBy}` : '';
+        const uidParam = user?.uid ? `&uid=${user.uid}` : '';
+        const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
+
+        // Parâmetros dos filtros avançados
+        const advancedParams = `
+          &minProgress=${advancedFilters.minProgress}
+          &maxProgress=${advancedFilters.maxProgress}
+          &minTerms=${advancedFilters.minTerms}
+          &maxTerms=${advancedFilters.maxTerms}
+          &minLikes=${advancedFilters.minLikes}
+          &minApprovalRate=${advancedFilters.minApprovalRate}
+        `.replace(/\s+/g, ''); // Remove espaços em branco
 
         const res = await fetch(
-          `/api/lists?sortBy=${sortParam}${catParam}${uidParam}&page=${page}&limit=${LISTS_PAGE_SIZE}`,
+          `/api/lists?sortBy=${sortParam}${catParam}${uidParam}${searchParam}${advancedParams}&page=${page}&limit=${LISTS_PAGE_SIZE}`,
           {
             headers: firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}
           }
-        )
-        const data = await res.json()
-        setLists(data.lists || [])
-        setTotalPages(data.totalPages || 1)
+        );
+        const data = await res.json();
+        setLists(data.lists || []);
+        setTotalPages(data.totalPages || 1);
       } catch (err) {
-        console.error('Erro ao buscar listas públicas:', err)
+        console.error('Erro ao buscar listas públicas:', err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchLists()
-  }, [sortBy, category, page, user?.uid, firebaseToken])
-
+    fetchLists();
+  }, [sortBy, category, page, user?.uid, firebaseToken, advancedFilters, searchQuery]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 min-h-screen">
@@ -61,9 +86,9 @@ export default function HomePage() {
       <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
         <div className="flex-1">
           <label className="block mb-2 text-sm font-medium text-gray-300">Categoria:</label>
-          <select 
-            value={category} 
-            onChange={e => { setCategory(e.target.value); setPage(1); }} 
+          <select
+            value={category}
+            onChange={e => { setCategory(e.target.value); setPage(1); }}
             className="w-full border border-indigo-500/30 bg-[#2d2b55] px-3 py-2 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           >
             {CATEGORIES.map(cat => (
@@ -71,7 +96,6 @@ export default function HomePage() {
             ))}
           </select>
         </div>
-        
         <div className="flex-1">
           <label className="block mb-2 text-sm font-medium text-gray-300">Ordenar por:</label>
           <select
@@ -90,6 +114,17 @@ export default function HomePage() {
                 </option>
               ))}
           </select>
+        </div>
+
+        {/* Botão de busca avançada */}
+        <div className="flex items-end">
+          <button
+            onClick={() => setIsAdvancedSearchOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+          >
+            <FiFilter className="w-4 h-4" />
+            Busca Avançada
+          </button>
         </div>
       </div>
 
@@ -114,33 +149,90 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Paginação - Só mostra se houver mais de uma página */}
+          {/* Paginação */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 mt-8 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
-              <button
-                onClick={() => setPage(prev => Math.max(prev - 1, 1))}
-                disabled={page === 1}
-                className="px-4 py-2 bg-[#2d2b55] hover:bg-[#3a3780] text-white rounded-lg border border-indigo-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                <FiChevronLeft className="w-4 h-4" /> Anterior
-              </button>
-              
-              <span className="text-gray-300">
-                Página <span className="font-medium">{page}</span> de {totalPages}
-              </span>
-              
-              <button
-                onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={page === totalPages}
-                className="px-4 py-2 bg-[#2d2b55] hover:bg-[#3a3780] text-white rounded-lg border border-indigo-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                Próximo <FiChevronRight className="w-4 h-4" />
-              </button>
+            <div className="flex flex-col items-center gap-4 mt-8 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
+
+
+              {/* Controles de navegação */}
+              <div className="flex flex-wrap justify-center items-center gap-2">
+                {/* Primeira página */}
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={page <= 1}
+                  className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                  title="Primeira página"
+                >
+                  <FiChevronsLeft className="w-3 h-3" />
+                </button>
+
+                {/* Página anterior */}
+                <button
+                  onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                  title="Página anterior"
+                >
+                  <FiChevronLeft className="w-3 h-3" />
+                </button>
+
+                {/* Números de página */}
+                {getPageNumbers(page, totalPages).map((pageNum, index) => (
+                  pageNum === '...' ? (
+                    <span key={`dots-${index}`} className="px-2 text-gray-400">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`px-3 py-2 rounded-lg border transition-colors ${page === pageNum
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                        : 'bg-[#2d2b55] border-indigo-500/30 text-gray-200 hover:bg-[#3a3780]'
+                        }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                ))}
+
+                {/* Próxima página */}
+                <button
+                  onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={page >= totalPages}
+                  className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                  title="Próxima página"
+                >
+                  <FiChevronRight className="w-3 h-3" />
+                </button>
+
+                {/* Última página */}
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={page >= totalPages}
+                  className="px-3 py-2 bg-[#2d2b55] text-gray-200 rounded-lg border border-indigo-500/30 disabled:opacity-50 hover:bg-[#3a3780] transition-colors flex items-center gap-1"
+                  title="Última página"
+                >
+                  <FiChevronsRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Info */}
+              <div className="text-gray-300 text-sm">
+                Página {page} de {totalPages}
+              </div>
             </div>
           )}
         </>
       )}
+
+      <AdvancedSearchModal
+        isOpen={isAdvancedSearchOpen}
+        onClose={() => setIsAdvancedSearchOpen(false)}
+        filters={advancedFilters}
+        onFiltersChange={setAdvancedFilters}
+        onApplyFilters={() => setPage(1)} // Resetar para primeira página ao aplicar filtros
+      />
     </div>
   )
 }
- 
