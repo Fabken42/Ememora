@@ -67,164 +67,94 @@ export default function ReorderTermsModal({
     if (!isOpen) return null;
 
     return (
-  <>
-    <BackButton listId={id} />
-    <div className="max-w-2xl mx-auto p-6">
-      {/* Cabeçalho com título e botões */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Editar Lista</h1>
-        <div className="flex items-center gap-2">
-          {/* Botão de adicionar em massa - MOVIDO PARA CÁ */}
-          <button
-            onClick={() => setIsBulkAddModalOpen(true)}
-            disabled={terms.length >= LIMITS.TOTAL_TERMS}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
-            title="Adicionar múltiplos termos de uma vez"
-          >
-            <FiFileText size={16} />
-            Adicionar em Massa
-          </button>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-[#24243e] p-6 rounded-xl border border-indigo-500/30 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-[--primary-text]">
+                        Reordenar Termos
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white transition-colors"
+                    >
+                        <FiX size={24} />
+                    </button>
+                </div>
 
-          {/* Botão de excluir lista */}
-          <button
-            onClick={handleDelete}
-            disabled={isSaving}
-            className="bg-red-600 hover:bg-red-500 text-white py-2 px-4 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-colors text-sm"
-          >
-            <FiTrash2 size={16} /> {isSaving ? 'Excluindo...' : 'Excluir Lista'}
-          </button>
+                <div className="mb-4">
+                    <p className="text-sm text-gray-400">
+                        Arraste e solte os termos para reordenar. Clique e segure no ícone <FiMove className="inline" /> para arrastar.
+                    </p>
+                </div>
+
+                <div className="overflow-y-auto flex-1">
+                    <div className="space-y-2">
+                        {localTerms.map((term, index) => {
+                            // Obter informações do status para cada termo
+                            const { StatusIcon, color } = getStatusInfo(term?.status || 0);
+
+                            return (
+                                <div
+                                    key={index}
+                                    data-index={index}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-move
+                      ${draggedIndex === index
+                                            ? 'bg-indigo-700 border-indigo-500 opacity-50'
+                                            : dragOverIndex === index
+                                                ? 'bg-indigo-800 border-indigo-400 border-2'
+                                                : 'bg-[#2d2b55] border-indigo-500/20 hover:border-indigo-500/40 hover:bg-[#35336b]'
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-full text-white font-medium text-sm">
+                                        {index + 1}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                            {term.term}
+                                        </p>
+                                        <p className="text-xs text-gray-400 truncate">
+                                            {term.definition.substring(0, 50)}
+                                            {term.definition.length > 50 && '...'}
+                                        </p>
+                                    </div>
+
+                                    {/* Ícone de status - lado direito */}
+                                    <div className="flex items-center gap-2">
+                                        <FiMove
+                                            size={18}
+                                            className="drag-handle text-gray-400 hover:text-white transition-colors"
+                                            title="Arraste para reordenar"
+                                        />
+                                        <StatusIcon className={`text-2xl ${color}`} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-indigo-500/20">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Salvar Ordem
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
-
-      {/* Campos da lista */}
-      <div className="space-y-4 mb-8">
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={() => saveList({ title })}
-          placeholder="Título da lista *"
-          className="w-full border border-indigo-500/30 bg-[#24243e] px-4 py-3 rounded-lg text-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-        />
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          onBlur={() => saveList({ description })}
-          placeholder="Descrição da lista"
-          className="w-full border border-indigo-500/30 bg-[#24243e] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-        <div>
-          <label className="block mb-2 text-sm font-medium text-gray-300">Categoria:</label>
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            onBlur={() => saveList({ category })}
-            className="w-full border border-indigo-500/30 bg-[#24243e] rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          >
-            {CATEGORIES.slice(1).map(cat => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#24243e] border border-indigo-500/30">
-          <input
-            type="checkbox"
-            id="isPublic"
-            checked={isPublic}
-            onChange={e => setIsPublic(e.target.checked)}
-            onBlur={() => saveList({ public: isPublic })}
-            className="w-5 h-5 text-indigo-500 bg-[#2d2b42] border-gray-600 rounded focus:ring-2 focus:ring-indigo-500"
-          />
-          <label htmlFor="isPublic" className="text-sm font-medium text-gray-300">
-            Lista pública
-          </label>
-        </div>
-      </div>
-
-      {/* Termos existentes */}
-      <div className='space-y-6 mb-8'>
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <FiPlus className="text-emerald-400" />
-            Termos ({terms.length})
-            {perfectTermsCount > 0 && (
-              <span className="text-sm font-normal text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded-full">
-                {perfectTermsCount} perfeito(s)
-              </span>
-            )}
-          </h2>
-
-          <div className="flex items-center gap-2">
-            {/* Botão de excluir termos perfeitos */}
-            <button
-              onClick={removePerfectTerms}
-              disabled={isSaving || !perfectTermsCount}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors disabled:opacity-50"
-              title="Excluir termos já dominados (status perfeito)"
-            >
-              <FiTrash2 size={16} />
-              Limpar Perfeitos
-            </button>
-
-            {terms.length > 1 && (
-              <button
-                onClick={() => setIsReorderModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
-              >
-                <FiMove size={16} />
-                Reordenar
-              </button>
-            )}
-          </div>
-        </div>
-
-        {terms.map((term, i) => (
-          <ExistingTermCard
-            key={i}
-            term={term}
-            index={i}
-            onTermChange={handleTermChange}
-            onTermBlur={handleTermBlur}
-            onImageUpload={handleImageUpload}
-            onRemoveImage={handleRemoveImage}
-            onRemoveTerm={removeTerm}
-          />
-        ))}
-      </div>
-      
-      {/* Novo termo */}
-      <NewTermForm
-        newTerm={newTerm}
-        setNewTerm={setNewTerm}
-        tempImages={tempImages}
-        onAddTerm={addTerm}
-        isSaving={isSaving}
-      />
-    </div>
-
-    {uploadingImage && (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#24243e] p-6 rounded-xl border border-indigo-500/30">
-          <LoadingSpinner message="Enviando imagem..." />
-        </div>
-      </div>
-    )}
-
-    <ReorderTermsModal
-      isOpen={isReorderModalOpen}
-      onClose={() => setIsReorderModalOpen(false)}
-      terms={terms}
-      onReorder={handleReorderTerms}
-    />
-    <BulkAddTermsModal
-      isOpen={isBulkAddModalOpen}
-      onClose={() => setIsBulkAddModalOpen(false)}
-      onAddTerms={handleBulkAddTerms}
-      existingTermsCount={terms.length}
-      maxTerms={LIMITS.TOTAL_TERMS}
-    />
-  </>
-);
+    );
 }

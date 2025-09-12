@@ -1,7 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['lh3.googleusercontent.com'], 
+    domains: ['res.cloudinary.com'], // ← Adicione o domínio do Cloudinary
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        port: '',
+        pathname: '/**', // Permite todas as imagens do Cloudinary
+      },
+    ],
   },
 }
 

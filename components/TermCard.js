@@ -74,5 +74,4 @@ export default function TermCard({ term, isAuthenticated }) {
       )}
     </div>
   )
-
 }
