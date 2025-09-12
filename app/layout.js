@@ -5,6 +5,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import AuthProvider from '@/app/AuthProvider'
 import { Toaster } from 'react-hot-toast'
+import { Suspense } from 'react'
 
 export const metadata = {
   title: 'ememora',
@@ -19,7 +20,7 @@ export default function RootLayout({ children }) {
     <html lang="pt-BR">
       <body className="flex flex-col min-h-screen">
         <AuthProvider>
-          
+
           <Suspense fallback={
             <header className="w-full px-6 py-4 bg-[#24243e] border-b border-indigo-500/20 animate-pulse">
               <div className="flex justify-between items-center">
