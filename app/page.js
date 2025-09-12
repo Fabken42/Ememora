@@ -8,11 +8,15 @@ import useUserStore from '@/store/useUserStore'
 import { FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight, FiFilter, FiInbox } from 'react-icons/fi'
 import AdvancedSearchModal from '@/components/AdvancedSearchModal'
 import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
-export default function HomePage() {
+// Componente principal que usa useSearchParams - deve estar em Suspense
+function HomeContent() {
+  const searchParams = useSearchParams()
+  const searchQuery = searchParams.get('search') || ''
+
   const { setLastHomeOrUserPage } = useNavigationStore()
   const { user, firebaseToken } = useUserStore()
-  const searchParams = useSearchParams()
 
   const [lists, setLists] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,8 +34,6 @@ export default function HomePage() {
     minLikes: 0,
     minApprovalRate: 0
   });
-
-  const searchQuery = searchParams.get('search') || ''
 
   useEffect(() => {
     setLastHomeOrUserPage('/')
@@ -152,8 +154,6 @@ export default function HomePage() {
           {/* Paginação */}
           {totalPages > 1 && (
             <div className="flex flex-col items-center gap-4 mt-8 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
-
-
               {/* Controles de navegação */}
               <div className="flex flex-wrap justify-center items-center gap-2">
                 {/* Primeira página */}
@@ -231,8 +231,45 @@ export default function HomePage() {
         onClose={() => setIsAdvancedSearchOpen(false)}
         filters={advancedFilters}
         onFiltersChange={setAdvancedFilters}
-        onApplyFilters={() => setPage(1)} // Resetar para primeira página ao aplicar filtros
+        onApplyFilters={() => setPage(1)}
       />
     </div>
+  )
+}
+
+// Componente principal da página
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-4xl mx-auto p-6 min-h-screen">
+        <div className="mb-8 p-6 bg-[#24243e] rounded-xl border border-indigo-500/20 animate-pulse">
+          <div className="h-8 bg-[#2d2b55] rounded w-1/3 mb-2"></div>
+          <div className="h-4 bg-[#2d2b55] rounded w-1/2"></div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
+          <div className="flex-1">
+            <div className="h-4 bg-[#2d2b55] rounded w-1/4 mb-2"></div>
+            <div className="h-10 bg-[#2d2b55] rounded"></div>
+          </div>
+          <div className="flex-1">
+            <div className="h-4 bg-[#2d2b55] rounded w-1/4 mb-2"></div>
+            <div className="h-10 bg-[#2d2b55] rounded"></div>
+          </div>
+          <div className="flex items-end">
+            <div className="h-10 bg-[#2d2b55] rounded w-32"></div>
+          </div>
+        </div>
+
+        <div className="flex justify-center items-center p-12 bg-[#24243e] rounded-xl border border-indigo-500/20">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500"></div>
+            <p className="text-gray-300">Carregando...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   )
 }
