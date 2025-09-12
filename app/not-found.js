@@ -1,4 +1,6 @@
 // app/not-found.js
+import Link from "next/link"
+
 export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0f23]">
@@ -8,17 +10,17 @@ export default function NotFound() {
         <p className="text-gray-300 mb-6">
           A página que você está procurando não existe.
         </p>
-        <a
+        <Link
           href="/"
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg transition-colors"
         >
           Voltar para o início
-        </a>
+        </Link>
       </div>
     </div>
   )
 }
 
 export const metadata = {
-  title: 'Página não encontrada - Ememora',
+  title: "Página não encontrada - Ememora",
 }
