@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { CATEGORIES, hasMinimumData, LIMITS, uploadTempImages } from '@/lib/utils';
 import BackButton from '@/components/BackButton';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { FiPlus, FiTrash2, FiMove, FiFileText } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiMove, FiFileText, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import BulkAddTermsModal from '@/components/BulkAddTermsModal';
 import ExistingTermCard from '@/components/ExistingTermCard';
 import NewTermForm from '@/components/NewTermForm';
@@ -506,28 +506,32 @@ export default function EditListPage() {
       <BackButton listId={id} />
       <div className="max-w-2xl mx-auto p-6">
         {/* Cabeçalho com título e botões */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Editar Lista</h1>
-          <div className="flex items-center gap-2">
-            {/* Botão de adicionar em massa - MOVIDO PARA CÁ */}
-            <button
-              onClick={() => setIsBulkAddModalOpen(true)}
-              disabled={terms.length >= LIMITS.TOTAL_TERMS}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
-              title="Adicionar múltiplos termos de uma vez"
-            >
-              <FiFileText size={16} />
-              Adicionar em Massa
-            </button>
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <h1 className="text-2xl font-semibold">Editar Lista</h1>
 
-            {/* Botão de excluir lista */}
-            <button
-              onClick={handleDelete}
-              disabled={isSaving}
-              className="bg-red-600 hover:bg-red-500 text-white py-2 px-4 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-colors text-sm"
-            >
-              <FiTrash2 size={16} /> {isSaving ? 'Excluindo...' : 'Excluir Lista'}
-            </button>
+            {/* Botões - aparecem abaixo em mobile */}
+            <div className="flex flex-col xs:flex-row gap-2">
+              {/* Botão de adicionar em massa */}
+              <button
+                onClick={() => setIsBulkAddModalOpen(true)}
+                disabled={terms.length >= LIMITS.TOTAL_TERMS}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+                title="Adicionar múltiplos termos de uma vez"
+              >
+                <FiFileText size={16} />
+                Adicionar em Massa
+              </button>
+
+              {/* Botão de excluir lista */}
+              <button
+                onClick={handleDelete}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg disabled:opacity-50 transition-colors text-sm"
+              >
+                <FiTrash2 size={16} /> {isSaving ? 'Excluindo...' : 'Excluir Lista'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -580,7 +584,7 @@ export default function EditListPage() {
 
         {/* Termos existentes */}
         <div className='space-y-6 mb-8'>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <FiPlus className="text-emerald-400" />
               Termos ({terms.length})
@@ -591,12 +595,13 @@ export default function EditListPage() {
               )}
             </h2>
 
-            <div className="flex items-center gap-2">
+            {/* Botões - aparecem abaixo em mobile */}
+            <div className="flex flex-col xs:flex-row gap-2">
               {/* Botão de excluir termos perfeitos */}
               <button
                 onClick={removePerfectTerms}
                 disabled={isSaving || !perfectTermsCount}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors disabled:opacity-50"
                 title="Excluir termos já dominados (status perfeito)"
               >
                 <FiTrash2 size={16} />
@@ -606,7 +611,7 @@ export default function EditListPage() {
               {terms.length > 1 && (
                 <button
                   onClick={() => setIsReorderModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
                 >
                   <FiMove size={16} />
                   Reordenar
@@ -637,6 +642,24 @@ export default function EditListPage() {
           onAddTerm={addTerm}
           isSaving={isSaving}
         />
+      </div>
+
+      {/* Botões de navegação fixos */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="p-3 bg-indigo-600 opacity-60 hover:opacity-100 hover:bg-indigo-500 text-white rounded-full shadow-lg transition-all transform hover:scale-105"
+          title="Voltar ao topo"
+        >
+          <FiChevronUp size={20} />
+        </button>
+        <button
+          onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+          className="p-3 bg-indigo-600 opacity-60 hover:opacity-100 hover:bg-indigo-500 text-white rounded-full shadow-lg transition-all transform hover:scale-105"
+          title="Ir para o final"
+        >
+          <FiChevronDown size={20} />
+        </button>
       </div>
 
       {uploadingImage && (

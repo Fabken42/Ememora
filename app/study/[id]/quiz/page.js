@@ -35,7 +35,7 @@ export default function QuizStudyPage() {
   const params = useParams()
   const { firebaseToken } = useUserStore()
 
-  const fetchListInfo = async () => {
+  const fetchListData = async (options = {}) => {
     try {
       if (!params.id) return
 
@@ -47,63 +47,55 @@ export default function QuizStudyPage() {
         headers['Authorization'] = `Bearer ${firebaseToken}`
       }
 
-      const res = await fetch(`/api/lists/${params.id}?includePerfect=true&limit=0`, { headers })
+      // Configura parâmetros padrão para a busca inicial
+      const includePerfect = options.includePerfect !== undefined ? options.includePerfect : true
+      const limit = options.limit !== undefined ? options.limit : 0
+      const sort = options.randomOrder ? 'random' : (options.sortOption || 'normal')
+
+      const res = await fetch(
+        `/api/lists/${params.id}?includePerfect=${includePerfect}&limit=${limit}&sort=${sort}`,
+        { headers }
+      )
+
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erro ao buscar informações da lista')
 
-      setListInfo(data)
+      // Se é a busca inicial (sem opções específicas)
+      if (Object.keys(options).length === 0) {
+        setListInfo(data)
 
-      // Se a lista não tem termos, não mostramos as configurações
-      if (data.totalTerms === 0) {
-        setSettingsChosen(true)
-        setTerms([])
+        // Se a lista não tem termos, não mostramos as configurações
+        if (data.totalTerms === 0) {
+          setSettingsChosen(true)
+          setTerms([])
+        }
+      } else {
+        // Se é uma busca com opções específicas (início do jogo)
+        setTitle(data.title)
+        setTerms(data.terms || [])
+        setIndex(0)
+        setRightAnswer(0)
+        setWrongAnswer(0)
+        setGameOver(false)
+        setReviewMode(false)
+        setAnsweredQuestions([])
       }
+
+      return data
     } catch (err) {
-      console.error('Erro ao buscar informações da lista:', err)
+      console.error('Erro ao buscar dados da lista:', err)
       setFetchError(err.message)
+      throw err
     } finally {
       setLoadingInfo(false)
     }
   }
 
   useEffect(() => {
-    if (!settingsChosen) fetchListInfo()
-  }, [params.id, firebaseToken, settingsChosen])
-
-  const fetchList = async (opts) => {
-    try {
-      if (!params.id) return
-
-      setLoadingInfo(true)
-      setFetchError(null)
-
-      const headers = {}
-      if (firebaseToken) {
-        headers['Authorization'] = `Bearer ${firebaseToken}`
-      }
-
-      const res = await fetch(
-        `/api/lists/${params.id}?includePerfect=${opts.includePerfect}&limit=${opts.limit}&sort=${opts.randomOrder ? 'random' : 'normal'}`,
-        { headers }
-      )
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Erro ao carregar quiz")
-
-      setTitle(data.title)
-      setTerms(data.terms || [])
-      setIndex(0)
-      setRightAnswer(0)
-      setWrongAnswer(0)
-      setGameOver(false)
-      setReviewMode(false)
-      setAnsweredQuestions([])
-    } catch (err) {
-      console.error("Erro ao buscar lista para quiz:", err)
-      setFetchError(err.message)
-    } finally {
-      setLoadingInfo(false)
+    if (!settingsChosen) {
+      fetchListData()
     }
-  }
+  }, [params.id, firebaseToken, settingsChosen])
 
   useEffect(() => {
     if (terms.length > 0 && !reviewMode) {
@@ -131,7 +123,12 @@ export default function QuizStudyPage() {
 
   const handleStart = (opts) => {
     setSettingsChosen(true)
-    fetchList(opts)
+    setLoadingInfo(true)
+    fetchListData({
+      includePerfect: opts.includePerfect,
+      limit: opts.limit,
+      randomOrder: opts.randomOrder
+    })
   }
 
   const handleAnswer = async (correct, selectedOption) => {
@@ -204,8 +201,7 @@ export default function QuizStudyPage() {
     setRightAnswer(0)
     setWrongAnswer(0)
     setFetchError(null)
-    setLoadingInfo(true)
-    fetchListInfo()
+    setLoadingInfo(false)
   }
 
   const handleFinishReview = () => {
@@ -213,7 +209,7 @@ export default function QuizStudyPage() {
   }
 
   // 1. Estado de loading para renderização condicional
-  if (loadingInfo) {
+  if (loadingInfo && !settingsChosen) {
     return (<LoadingSpinner message='Carregando informações da lista...' />)
   }
 
@@ -234,7 +230,7 @@ export default function QuizStudyPage() {
             {fetchError}
           </p>
           <button
-            onClick={fetchListInfo}
+            onClick={() => fetchListData()}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
           >
             Tentar Novamente
@@ -257,7 +253,11 @@ export default function QuizStudyPage() {
     )
   }
 
-  if (terms.length === 0 && !loadingInfo) {
+  if (loadingInfo) {
+    return <LoadingSpinner message='Carregando quiz...' />
+  }
+
+  if (terms.length === 0) {
     return (
       <div className="min-h-screen">
         <div className="mb-6">

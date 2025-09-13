@@ -29,7 +29,7 @@ export default function FlashcardStudyPage() {
   const { firebaseToken } = useUserStore()
   const params = useParams()
 
-  const fetchListInfo = async () => {
+  const fetchListData = async (options = {}) => {
     try {
       if (!params.id) return
 
@@ -41,73 +41,69 @@ export default function FlashcardStudyPage() {
         headers['Authorization'] = `Bearer ${firebaseToken}`
       }
 
-      const res = await fetch(`/api/lists/${params.id}?includePerfect=true&limit=0`, { headers })
+      // Configura parâmetros padrão para a busca inicial
+      const includePerfect = options.includePerfect !== undefined ? options.includePerfect : true
+      const limit = options.limit !== undefined ? options.limit : 0
+      const sort = options.randomOrder ? 'random' : (options.sortOption || 'normal')
+
+      const res = await fetch(
+        `/api/lists/${params.id}?includePerfect=${includePerfect}&limit=${limit}&sort=${sort}`,
+        { headers }
+      )
+
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erro ao buscar informações da lista')
 
-      setListInfo(data)
-
-      // Se a lista não tem termos, não mostramos as configurações
-      if (data.totalTerms === 0) {
-        setSettingsChosen(true)
-        setTerms([])
+      // Se é a busca inicial (sem opções específicas)
+      if (Object.keys(options).length === 0) {
+        setListInfo(data)
+        
+        // Se a lista não tem termos, não mostramos as configurações
+        if (data.totalTerms === 0) {
+          setSettingsChosen(true)
+          setTerms([])
+        }
+      } else {
+        // Se é uma busca com opções específicas (início do jogo)
+        setTerms(data.terms || [])
+        setTitle(data.title || '')
+        setRightAnswer(0)
+        setWrongAnswer(0)
+        setIndex(0)
+        setGameOver(false)
+        setReviewMode(false)
+        setAnsweredQuestions([])
       }
+      
+      return data
     } catch (err) {
-      console.error('Erro ao buscar informações da lista:', err)
+      console.error('Erro ao buscar dados da lista:', err)
       setFetchError(err.message)
+      throw err
     } finally {
       setLoadingInfo(false)
     }
   }
 
   useEffect(() => {
-    if (!settingsChosen) fetchListInfo()
-  }, [params.id, firebaseToken, settingsChosen])
-
-  const fetchList = async (opts) => {
-    try {
-      if (!params.id) return
-
-      setLoadingInfo(true)
-      setFetchError(null)
-
-      const headers = {}
-      if (firebaseToken) {
-        headers['Authorization'] = `Bearer ${firebaseToken}`
-      }
-
-      const res = await fetch(
-        `/api/lists/${params.id}?includePerfect=${opts.includePerfect}&limit=${opts.limit}&sort=${opts.randomOrder ? 'random' : 'normal'}`,
-        { headers }
-      )
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erro ao buscar lista')
-
-      setTerms(data.terms || [])
-      setTitle(data.title || '')
-      setRightAnswer(0)
-      setWrongAnswer(0)
-      setIndex(0)
-      setGameOver(false)
-      setReviewMode(false)
-      setAnsweredQuestions([])
-    } catch (err) {
-      console.error('Erro ao buscar termos:', err)
-      setFetchError(err.message)
-    } finally {
-      setLoadingInfo(false)
+    if (!settingsChosen) {
+      fetchListData()
     }
-  }
+  }, [params.id, firebaseToken, settingsChosen])
 
   const handleStart = (opts) => {
     setSettingsChosen(true)
-    fetchList(opts)
+    setLoadingInfo(true)
+    fetchListData({
+      includePerfect: opts.includePerfect,
+      limit: opts.limit,
+      randomOrder: opts.randomOrder
+    })
   }
 
   const handleMark = async (correct) => {
-    if (isMarking) return // Previne múltiplos cliques
-    setIsMarking(true)
+    if (isMarking) return
+    setIsMarking(true) 
 
     const newAnsweredQuestion = {
       term: terms[index],
@@ -166,16 +162,15 @@ export default function FlashcardStudyPage() {
     setRightAnswer(0)
     setWrongAnswer(0)
     setFetchError(null)
-    setLoadingInfo(true)
-    fetchListInfo() // Recarrega as informações da lista
+    setLoadingInfo(false)
   }
 
   const handleFinishReview = () => {
     setGameOver(true)
   }
 
-  if (loadingInfo) {
-    return (<LoadingSpinner message='Carregando informações da lista...' />)
+  if (loadingInfo && !settingsChosen) {
+    return <LoadingSpinner message='Carregando informações da lista...' />
   }
 
   if (fetchError) {
@@ -195,7 +190,7 @@ export default function FlashcardStudyPage() {
             {fetchError}
           </p>
           <button
-            onClick={fetchListInfo}
+            onClick={() => fetchListData()}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
           >
             Tentar Novamente
@@ -218,7 +213,11 @@ export default function FlashcardStudyPage() {
     )
   }
 
-  if (terms.length === 0 && !loadingInfo) {
+  if (loadingInfo) {
+    return <LoadingSpinner message='Carregando termos...' />
+  }
+
+  if (terms.length === 0) {
     return (
       <div className="min-h-screen">
         <div className="mb-6">
@@ -234,7 +233,6 @@ export default function FlashcardStudyPage() {
           <p className="text-gray-300 mb-4">
             Não há termos para estudar
           </p>
-
         </div>
       </div>
     )

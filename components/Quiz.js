@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getStatusInfo } from '@/lib/utils' // ← Importar a função
+import { getStatusInfo } from '@/lib/utils'
 import { FiCheck, FiInfo, FiX } from 'react-icons/fi'
 
 export default function Quiz({
@@ -16,6 +16,7 @@ export default function Quiz({
 }) {
   const [selected, setSelected] = useState(null)
   const [correctAnswer, setCorrectAnswer] = useState(null)
+  const [showHint, setShowHint] = useState(false) // ← Novo estado para controlar a dica
 
   const handleClick = (optionText) => {
     if (showResult) return // Não faz nada no modo revisão
@@ -26,8 +27,15 @@ export default function Quiz({
     onAnswer(isCorrect, optionText) // Passa a opção selecionada
   }
 
-  // Reset quando o termo muda
+  // Função para toggle da dica
+  const toggleHint = (e) => {
+    if (e) e.stopPropagation()
+    setShowHint(prev => !prev)
+  }
+
+  // Fechar dica quando o termo mudar
   useEffect(() => {
+    setShowHint(false)
     setSelected(null)
     setCorrectAnswer(null)
 
@@ -86,17 +94,37 @@ export default function Quiz({
           </div>
         )}
 
-        {/* Hint */}
+        {/* Hint - Versão melhorada */}
         {term.hint && (
-          <div className="relative group mt-2">
-            <div className="flex items-center gap-1 text-indigo-400 text-sm cursor-pointer hover:text-indigo-300 transition-colors">
-              <FiInfo className="w-4 h-4" />
-              <span>Dica</span>
-            </div>
-            <div className="absolute left-full top-0 ml-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-lg z-10 border border-indigo-500/30 break-words">
-              {term.hint}
-              <div className="absolute top-3 -left-1 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-l border-b border-indigo-500/30"></div>
-            </div>
+          <div className="relative flex justify-center mt-2">
+            <button
+              onClick={toggleHint}
+              className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors p-2 rounded-lg hover:bg-[#2d2b55]"
+              aria-label="Mostrar dica"
+            >
+              <FiInfo className="w-5 h-5" /> {/* Ícone maior */}
+              <span className="text-sm">Dica</span>
+            </button>
+
+            {/* Tooltip que aparece tanto no hover quanto no click */}
+            {(showHint) && (
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 shadow-lg z-10 border border-indigo-500/30 break-words">
+                {term.hint}
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-l border-b border-indigo-500/30"></div>
+
+                {/* Botão de fechar para mobile */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowHint(false)
+                  }}
+                  className="absolute top-1 right-1 text-gray-400 hover:text-white p-1"
+                  aria-label="Fechar dica"
+                >
+                  <FiX className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

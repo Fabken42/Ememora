@@ -1,18 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { getStatusInfo } from '@/lib/utils' // ← Importar a função
+import { getStatusInfo } from '@/lib/utils'
 import { FiCheck, FiX, FiInfo } from 'react-icons/fi'
 
 export default function Flashcard({ term, onMark, showResult = false, wasCorrect = undefined, isAuthenticated = false, isMarking = false }) {
   const [flipped, setFlipped] = useState(false)
+  const [showHint, setShowHint] = useState(false) // ← Novo estado para controlar a dica
 
   // Calcula o status ajustado baseado no resultado
   let adjustedStatus = Number(term.status) || 0
   if (wasCorrect === true) adjustedStatus += 1
   if (wasCorrect === false) adjustedStatus -= 1
 
-  // Usa a função utilitária ← MUDA AQUI
+  // Usa a função utilitária
   const { StatusIcon, color } = getStatusInfo(adjustedStatus)
 
   // Determinar a cor da borda baseada no resultado (modo revisão)
@@ -20,6 +21,12 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
     if (!showResult) return 'border-indigo-500/30' // Borda normal durante o jogo
 
     return wasCorrect ? 'border-green-400/50' : 'border-red-400/50'
+  }
+
+  // Função para toggle da dica (previne propagação do click do card)
+  const toggleHint = (e) => {
+    e.stopPropagation()
+    setShowHint(prev => !prev)
   }
 
   return (
@@ -56,15 +63,36 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
 
             <div className="text-center">
               {term.hint && (
-                <div className="relative group mt-2">
-                  <div className="flex items-center gap-1 text-indigo-400 text-sm cursor-pointer hover:text-indigo-300 transition-colors">
-                    <FiInfo className="w-4 h-4" />
-                    <span>Dica</span>
-                  </div>
-                  <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-lg z-10 border border-indigo-500/30 break-all">
-                    {term.hint}
-                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-t border-l border-indigo-500/30"></div>
-                  </div>
+                <div className="relative flex justify-center mt-2">
+                  <button
+                    onClick={toggleHint}
+                    className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors p-2 rounded-lg hover:bg-[#2d2b55]"
+                    aria-label="Mostrar dica"
+                  >
+                    <FiInfo className="w-5 h-5" /> {/* Ícone maior */}
+                    <span className="text-sm">Dica</span>
+                  </button>
+
+                  {/* Tooltip que aparece tanto no hover quanto no click */}
+                  {(showHint) && (
+                    <div className="fixed md:absolute bottom-4 md:bottom-auto md:top-full left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:mt-2 md:w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 shadow-lg z-50 border border-indigo-500/30 break-words">
+                      {term.hint}
+
+                      {/* Seta - aparece apenas no desktop */}
+                      <div className="hidden md:block absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-t border-l border-indigo-500/30"></div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowHint(false)
+                        }}
+                        className="absolute top-1 right-1 text-gray-400 hover:text-white p-1"
+                        aria-label="Fechar dica"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               {showResult && (

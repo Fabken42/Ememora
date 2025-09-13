@@ -11,7 +11,7 @@ export async function GET(req, context) {
   await dbConnect()
 
   try {
-    const { id } = context.params
+    const { id } = await context.params
     const { searchParams } = new URL(req.url)
 
     const includePerfect = searchParams.get('includePerfect') !== 'false'

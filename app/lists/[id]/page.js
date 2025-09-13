@@ -108,16 +108,17 @@ export default function TermListPage() {
         {/* Header Section */}
         <div className="flex flex-col items-center text-center gap-3 mb-8 p-6 rounded-xl bg-[#24243e] border border-indigo-500/20 shadow-lg relative">
 
-          {/* Reset Button */}
-          <button
-            onClick={resetStatus}
-            disabled={loadingReset}
-            className="absolute top-4 right-4 bg-[#2d2b55] hover:bg-[#3a3780] text-gray-200 px-3 py-2 rounded-lg border border-indigo-500/30 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-            title="Resetar progresso"
-          >
-            <FiRefreshCw className="w-4 h-4" /> 
-            {loadingReset ? 'Resetando...' : 'Resetar progresso'}
-          </button>
+          <div className="w-full flex justify-center mb-2">
+            <button
+              onClick={resetStatus}
+              disabled={loadingReset}
+              className="bg-[#2d2b55] hover:bg-[#3a3780] text-gray-200 px-3 py-2 rounded-lg border border-indigo-500/30 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+              title="Resetar progresso"
+            >
+              <FiRefreshCw className="w-4 h-4" />
+              {loadingReset ? 'Resetando...' : 'Resetar progresso'}
+            </button>
+          </div>
 
           <h1 className="text-3xl font-bold break-all">{title || 'Lista de Termos'}</h1>
           <p className="text-gray-300 max-w-2xl break-all">{description}</p>
