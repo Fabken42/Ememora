@@ -163,7 +163,7 @@ export default function EditListPage() {
               body: JSON.stringify({ imageUrl }),
             }).then(res => {
               if (!res.ok) {
-                console.warn(`Não foi possível excluir imagem: ${imageUrl}`);
+                window.location.reload()
               }
               return res;
             })
@@ -171,7 +171,7 @@ export default function EditListPage() {
 
           await Promise.all(deletePromises);
         } catch (error) {
-          console.warn('Erro ao excluir imagens:', error);
+          window.location.reload()
         }
       }
 
@@ -255,10 +255,10 @@ export default function EditListPage() {
         }),
       });
 
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) window.location.reload()
       toast.success('Lista salva!');
     } catch (err) {
-      toast.error(err.message || 'Erro ao salvar lista');
+      window.location.reload()
     } finally {
       setIsSaving(false);
     }
@@ -291,7 +291,7 @@ export default function EditListPage() {
         body: formData
       });
 
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) window.location.reload()
 
       const data = await res.json();
       const updated = [...terms];
@@ -300,7 +300,7 @@ export default function EditListPage() {
       saveList({ terms: updated });
 
     } catch (err) {
-      toast.error('Erro ao enviar imagem');
+      window.location.reload()
     } finally {
       setUploadingImage(null);
     }
@@ -321,7 +321,7 @@ export default function EditListPage() {
       });
 
       if (!deleteRes.ok) {
-        console.warn('Não foi possível excluir a imagem do Cloudinary');
+        window.location.reload()
       }
 
       // Atualiza o estado local
@@ -331,8 +331,7 @@ export default function EditListPage() {
       saveList({ terms: updated });
 
     } catch (error) {
-      console.error('Erro ao remover imagem:', error);
-      toast.error('Erro ao remover imagem');
+      window.location.reload()
     }
   };
 
@@ -417,11 +416,11 @@ export default function EditListPage() {
             body: JSON.stringify({ imageUrl }),
           }).then(res => {
             if (!res.ok) {
-              console.warn(`Não foi possível excluir imagem: ${imageUrl}`);
+              window.location.reload()
             }
             return res;
           }).catch(error => {
-            console.error('Erro ao excluir imagem:', error);
+            window.location.reload()
             return null;
           })
         );
@@ -436,8 +435,7 @@ export default function EditListPage() {
       saveList({ terms: updated });
 
     } catch (error) {
-      console.error('Erro ao remover termo:', error);
-      toast.error('Erro ao remover termo');
+      window.location.reload()
     }
   };
 
@@ -470,7 +468,7 @@ export default function EditListPage() {
         });
 
         if (!deleteRes.ok) {
-          console.warn('Não foi possível excluir todas as imagens do Cloudinary');
+          window.location.reload()
         }
       }
 
@@ -484,10 +482,10 @@ export default function EditListPage() {
         toast.success('Lista excluída com sucesso!');
         router.push(`/users/${userId}`);
       } else {
-        throw new Error('Erro ao excluir lista');
+        window.location.reload()
       }
     } catch (err) {
-      toast.error('Erro ao excluir lista');
+      window.location.reload()
     } finally {
       setIsSaving(false);
     }

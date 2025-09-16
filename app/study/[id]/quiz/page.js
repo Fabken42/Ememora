@@ -33,7 +33,7 @@ export default function QuizStudyPage() {
   const [answeredQuestions, setAnsweredQuestions] = useState([])
 
   const params = useParams()
-  const { firebaseToken } = useUserStore()
+  const { firebaseToken, handleRefreshToken } = useUserStore()
 
   const fetchListData = async (options = {}) => {
     try {
@@ -155,7 +155,7 @@ export default function QuizStudyPage() {
         return
       }
 
-      await fetch(`/api/lists/${params.id}/update-status`, {
+      const response = await fetch(`/api/lists/${params.id}/update-status`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -166,8 +166,31 @@ export default function QuizStudyPage() {
           correct
         })
       })
+
+      if (response.status !== 200) {
+        await handleRefreshToken();
+
+        // Tenta a requisição novamente com o novo token
+        const newResponse = await fetch(`/api/lists/${params.id}/update-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${firebaseToken}` // Agora com token renovado
+          },
+          body: JSON.stringify({
+            term: terms[index].term,
+            correct
+          })
+        })
+
+        if (!newResponse.ok) {
+          window.location.reload()
+        }
+      } else if (!response.ok) {
+        window.location.reload()
+      }
     } catch (err) {
-      console.error("Erro ao atualizar status:", err)
+      window.location.reload()
     }
   }
 

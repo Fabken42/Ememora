@@ -57,7 +57,7 @@ export default function FlashcardStudyPage() {
       // Se é a busca inicial (sem opções específicas)
       if (Object.keys(options).length === 0) {
         setListInfo(data)
-        
+
         // Se a lista não tem termos, não mostramos as configurações
         if (data.totalTerms === 0) {
           setSettingsChosen(true)
@@ -74,7 +74,7 @@ export default function FlashcardStudyPage() {
         setReviewMode(false)
         setAnsweredQuestions([])
       }
-      
+
       return data
     } catch (err) {
       console.error('Erro ao buscar dados da lista:', err)
@@ -103,7 +103,7 @@ export default function FlashcardStudyPage() {
 
   const handleMark = async (correct) => {
     if (isMarking) return
-    setIsMarking(true) 
+    setIsMarking(true)
 
     const newAnsweredQuestion = {
       term: terms[index],
@@ -116,21 +116,47 @@ export default function FlashcardStudyPage() {
     else setWrongAnswer(prev => prev + 1)
 
     try {
-      if (firebaseToken) {
-        await fetch(`/api/lists/${params.id}/update-status`, {
+      if (!firebaseToken) {
+        console.error("Token do Firebase não disponível")
+        setIsMarking(false)
+        return
+      }
+
+      const response = await fetch(`/api/lists/${params.id}/update-status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${firebaseToken}`
+        },
+        body: JSON.stringify({
+          term: terms[index].term,
+          correct
+        })
+      })
+
+      // Verifica se o token expirou
+      if (response.status !== 200) {
+        await handleRefreshToken();
+
+        const newResponse = await fetch(`/api/lists/${params.id}/update-status`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${firebaseToken}`
+            "Authorization": `Bearer ${firebaseToken}` // Agora com token renovado
           },
           body: JSON.stringify({
             term: terms[index].term,
             correct
           })
         })
+        if (!newResponse.ok) {
+          window.location.reload()
+        }
+      } else if (!response.ok) {
+        window.location.reload()
       }
     } catch (err) {
-      console.error("Erro ao atualizar status:", err)
+      window.location.reload()
     }
 
     setIsMarking(false)
@@ -177,7 +203,7 @@ export default function FlashcardStudyPage() {
     return (
       <div className="min-h-screen p-6">
         <div className="mb-6">
-          <BackButton listId={params.id}/>
+          <BackButton listId={params.id} />
         </div>
         <div className="max-w-md mx-auto p-6 bg-[#24243e] rounded-xl border border-indigo-500/20 text-center">
           <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -204,7 +230,7 @@ export default function FlashcardStudyPage() {
     return (
       <div className="min-h-screen ">
         <div className="mb-6">
-          <BackButton listId={params.id}/>
+          <BackButton listId={params.id} />
         </div>
         <div className="max-w-md mx-auto">
           <GameSettings onStart={handleStart} listInfo={listInfo} />
@@ -221,7 +247,7 @@ export default function FlashcardStudyPage() {
     return (
       <div className="min-h-screen">
         <div className="mb-6">
-          <BackButton listId={params.id}/>
+          <BackButton listId={params.id} />
         </div>
         <div className="max-w-md mx-auto p-6 bg-[#24243e] rounded-xl border border-indigo-500/20 text-center">
           <div className="w-16 h-16 bg-gray-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -256,10 +282,10 @@ export default function FlashcardStudyPage() {
 
   return (
     <div className="min-h-screen p-6">
-      <BackButton listId={params.id}/>
+      <BackButton listId={params.id} />
       <div className="max-w-lg mx-auto flex flex-col">
         <div className="flex-1 flex flex-col justify-center">
-          <div className="mb-8 text-center p-4 bg-[#24243e] rounded-xl border border-indigo-500/20"> 
+          <div className="mb-8 text-center p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
             <h1 className="text-2xl font-bold mb-2 break-all">
               {title}
               {reviewMode && <span className="text-yellow-400 text-base ml-2">(Modo Revisão)</span>}
