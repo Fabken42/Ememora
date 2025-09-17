@@ -1,12 +1,29 @@
+// app/api/upload/delete-folder/route.js
 import { NextResponse } from 'next/server'
 import cloudinary from '@/lib/cloudinary'
+import { getAuth } from 'firebase-admin/auth'
 
 export async function POST(req) {
   try {
+    // Verificação de autenticação
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
+    }
+
+    const token = authHeader.split(' ')[1]
+    const decoded = await getAuth().verifyIdToken(token)
+    const uid = decoded.uid
+
     const { folderPath, images } = await req.json()
 
     if (!folderPath) {
       return NextResponse.json({ error: 'Caminho da pasta não fornecido' }, { status: 400 })
+    }
+
+    // Verifica se a pasta pertence ao usuário autenticado
+    if (!folderPath.includes(`/${uid}/`)) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
     }
 
     let deletedCount = 0;
@@ -45,6 +62,23 @@ export async function POST(req) {
     
   } catch (err) {
     console.error('Erro ao excluir pasta:', err)
+    
+    // Tratamento específico para token expirado
+    if (err.code === 'auth/id-token-expired') {
+      return NextResponse.json(
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' }, 
+        { status: 401 }
+      )
+    }
+    
+    // Tratamento para token inválido
+    if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
+      return NextResponse.json(
+        { error: 'Token inválido' }, 
+        { status: 401 }
+      )
+    }
+    
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

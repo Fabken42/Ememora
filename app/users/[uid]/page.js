@@ -112,91 +112,105 @@ export default function UserProfilePage({ params }) {
   }, [uid, category, sortBy, personalFilter, page, firebaseToken, isOwner])
 
   const handleSave = async (overrides = {}) => {
-  if (!firebaseToken) return
+    if (!firebaseToken) return
 
-  // Validação do nome  
-  const nameToValidate = overrides.name !== undefined ? overrides.name : editName
-  if (nameToValidate !== undefined && nameToValidate !== null) {
-    const trimmedName = nameToValidate.trim()
-    if (trimmedName.length === 0) {
-      toast.error('O nome não pode ficar vazio')
-      return
-    }
-    if (trimmedName.length < LIMITS.USER_NAME_MIN || trimmedName.length > LIMITS.USER_NAME_MAX) {
-      toast.error(`O nome deve ter entre ${LIMITS.USER_NAME_MIN} e ${LIMITS.USER_NAME_MAX} caracteres`)
-      return
-    }
-  }
-
-  // Validação da bio
-  const bioToValidate = overrides.bio || editBio
-  if (bioToValidate && bioToValidate.length > LIMITS.USER_BIO_MAX) {
-    toast.error(`A biografia deve ter no máximo LIMITS.USER_BIO_MAX caracteres`)
-    return
-  }
-
-  try {
-    const res = await fetch(`/api/users/${uid}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${firebaseToken}`,
-      },
-      body: JSON.stringify({
-        name: editName,
-        bio: editBio,
-        image: editImage,
-        ...overrides,
-      }),
-    })
-
-    if (res.ok) {
-      const updated = await res.json()
-      if (isOwner) {
-        setUser(updated)
-        setProfile(updated)
+    // Validação do nome  
+    const nameToValidate = overrides.name !== undefined ? overrides.name : editName
+    if (nameToValidate !== undefined && nameToValidate !== null) {
+      const trimmedName = nameToValidate.trim()
+      if (trimmedName.length === 0) {
+        toast.error('O nome não pode ficar vazio')
+        return
       }
-      toast.success('Perfil atualizado!')
-    } else {
-      const errorData = await res.json().catch(() => ({}))
-      throw new Error(errorData.error || 'Erro ao atualizar perfil')
+      if (trimmedName.length < LIMITS.USER_NAME_MIN || trimmedName.length > LIMITS.USER_NAME_MAX) {
+        toast.error(`O nome deve ter entre ${LIMITS.USER_NAME_MIN} e ${LIMITS.USER_NAME_MAX} caracteres`)
+        return
+      }
     }
-  } catch (error) {
-    console.error('Erro ao salvar:', error)
-    toast.error(error.message || 'Erro ao salvar alterações')
+
+    // Validação da bio
+    const bioToValidate = overrides.bio || editBio
+    if (bioToValidate && bioToValidate.length > LIMITS.USER_BIO_MAX) {
+      toast.error(`A biografia deve ter no máximo LIMITS.USER_BIO_MAX caracteres`)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/users/${uid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${firebaseToken}`,
+        },
+        body: JSON.stringify({
+          name: editName,
+          bio: editBio,
+          image: editImage,
+          ...overrides,
+        }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        if (isOwner) {
+          setUser(updated);
+          setProfile(updated);
+        }
+        toast.success('Perfil atualizado!');
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+
+        // Tratamento específico para token expirado
+        if (errorData.code === 'TOKEN_EXPIRED') {
+          // Você pode querer renovar o token automaticamente aqui
+          throw new Error('TOKEN_EXPIRED');
+        }
+
+        throw new Error(errorData.error || 'Erro ao atualizar perfil');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+
+      if (error.message === 'TOKEN_EXPIRED') {
+        // Lógica para renovar token e tentar novamente
+        await handleRefreshToken();
+        // Tentar novamente a requisição...
+      } else {
+        toast.error(error.message || 'Erro ao salvar alterações');
+      }
+    }
   }
-}
 
   const handleImageUpload = async (file) => {
-  if (!file || !user?.uid || !profile?.image) return
-  setUploading(true)
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('folder', 'profile_pics')
-    formData.append('userId', user.uid) // ← ADICIONA userId
-    formData.append('previousImageUrl', profile.image) // ← ADICIONA imagem anterior
+    if (!file || !user?.uid || !profile?.image) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'profile_pics')
+      formData.append('userId', user.uid) // ← ADICIONA userId
+      formData.append('previousImageUrl', profile.image) // ← ADICIONA imagem anterior
 
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    })
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
 
-    const data = await res.json()
-    if (res.ok) {
-      setEditImage(data.url)
-      await handleSave({ image: data.url })
-      toast.success('Foto de perfil atualizada!')
-    } else {
-      throw new Error(data.error || 'Erro no upload')
+      const data = await res.json()
+      if (res.ok) {
+        setEditImage(data.url)
+        await handleSave({ image: data.url })
+        toast.success('Foto de perfil atualizada!')
+      } else {
+        throw new Error(data.error || 'Erro no upload')
+      }
+    } catch (error) {
+      console.error('Erro no upload:', error)
+      toast.error(error.message || 'Erro ao fazer upload da imagem')
+    } finally {
+      setUploading(false)
     }
-  } catch (error) {
-    console.error('Erro no upload:', error)
-    toast.error(error.message || 'Erro ao fazer upload da imagem')
-  } finally {
-    setUploading(false)
   }
-}
 
   return (
     <div className="max-w-4xl mx-auto p-6 min-h-screen">

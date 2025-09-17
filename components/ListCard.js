@@ -13,6 +13,7 @@ import { FiBook, FiCalendar, FiEdit, FiHelpCircle, FiLayers, FiStar, FiTag, FiTh
 export default function ListCard({ list }) {
   const router = useRouter()
   const user = useUserStore(state => state.user)
+  const firebaseToken = useUserStore(state => state.firebaseToken);
   const uid = user?.uid
 
   const [likes, setLikes] = useState(list.likes || 0)
@@ -97,30 +98,61 @@ export default function ListCard({ list }) {
   }
 
   const sendFeedbackToServer = async (voteType) => {
+    if (!firebaseToken) {
+      throw new Error('Token não disponível');
+    }
+
     const res = await fetch(`/api/lists/${list._id}/feedback`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, vote: voteType }),
-    })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${firebaseToken}`
+      },
+      body: JSON.stringify({ vote: voteType }), // Remove o uid do body
+    });
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao enviar feedback')
+      const data = await res.json().catch(() => ({}));
+
+      // Tratamento específico para token expirado
+      if (data.code === 'TOKEN_EXPIRED') {
+        throw new Error('TOKEN_EXPIRED');
+      }
+
+      throw new Error(data?.error || 'Falha ao enviar feedback');
     }
-    return res.json()
-  }
+
+    return res.json();
+  };
 
   const sendFavoriteToServer = async (favorite) => {
+    if (!firebaseToken) {
+      throw new Error('Token não disponível');
+    }
+
     const res = await fetch(`/api/lists/${list._id}/favorite`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, favorite }),
-    })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${firebaseToken}`
+      },
+      body: JSON.stringify({ favorite }), // Remove o uid do body, pois vamos pegar do token
+    });
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao favoritar')
+      const data = await res.json().catch(() => ({}));
+
+      // Tratamento específico para token expirado
+      if (data.code === 'TOKEN_EXPIRED') {
+        // Você pode querer renovar o token automaticamente aqui
+        throw new Error('TOKEN_EXPIRED');
+      }
+
+      throw new Error(data?.error || 'Falha ao favoritar');
     }
-    return res.json()
-  }
+
+    return res.json();
+  };
 
   const handleVote = async (voteType, e) => {
     e?.stopPropagation() // evita clique propagar para o card
@@ -241,7 +273,7 @@ export default function ListCard({ list }) {
           </span>
         </button>
       </div>
-      
+
       {/* Progresso */}
       <div className="mb-4 p-3 bg-[#2d2b55] rounded-lg border border-indigo-500/30">
         <div className="flex items-center justify-between text-xs text-gray-400 mb-2">

@@ -9,10 +9,8 @@ import GameSettings from '@/components/GameSettings'
 import { FiAward, FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import BackButton from '@/components/BackButton'
-
-function shuffleArray(array) {
-  return [...array].sort(() => Math.random() - 0.5)
-}
+import { fetchWithTokenRetry } from '@/lib/utils'
+import { shuffleArray } from '@/lib/utils'
 
 export default function QuizStudyPage() {
   const [index, setIndex] = useState(0)
@@ -32,8 +30,9 @@ export default function QuizStudyPage() {
   const [reviewMode, setReviewMode] = useState(false)
   const [answeredQuestions, setAnsweredQuestions] = useState([])
 
+  const firebaseToken = useUserStore(state => state.firebaseToken);
+  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const params = useParams()
-  const { firebaseToken, handleRefreshToken } = useUserStore()
 
   const fetchListData = async (options = {}) => {
     try {
@@ -155,42 +154,25 @@ export default function QuizStudyPage() {
         return
       }
 
-      const response = await fetch(`/api/lists/${params.id}/update-status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${firebaseToken}`
-        },
-        body: JSON.stringify({
-          term: terms[index].term,
-          correct
-        })
-      })
-
-      if (response.status !== 200) {
-        await handleRefreshToken();
-
-        // Tenta a requisição novamente com o novo token
-        const newResponse = await fetch(`/api/lists/${params.id}/update-status`, {
+      const response = await fetchWithTokenRetry(
+        `/api/lists/${params.id}/update-status`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${firebaseToken}` // Agora com token renovado
           },
           body: JSON.stringify({
             term: terms[index].term,
             correct
           })
-        })
+        },
+        firebaseToken,
+        handleRefreshToken
+      )
 
-        if (!newResponse.ok) {
-          window.location.reload()
-        }
-      } else if (!response.ok) {
-        window.location.reload()
-      }
+      
     } catch (err) {
-      window.location.reload()
+      console.error('error: ', err)
     }
   }
 

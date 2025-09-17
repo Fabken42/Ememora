@@ -9,6 +9,7 @@ import GameSettings from '@/components/GameSettings'
 import { FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import BackButton from '@/components/BackButton'
+import { fetchWithTokenRetry } from '@/lib/utils'
 
 export default function FlashcardStudyPage() {
   const [index, setIndex] = useState(0)
@@ -25,8 +26,9 @@ export default function FlashcardStudyPage() {
   const [loadingInfo, setLoadingInfo] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [isMarking, setIsMarking] = useState(false)
-
-  const { firebaseToken } = useUserStore()
+  
+  const firebaseToken = useUserStore(state => state.firebaseToken);
+  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const params = useParams()
 
   const fetchListData = async (options = {}) => {
@@ -122,41 +124,24 @@ export default function FlashcardStudyPage() {
         return
       }
 
-      const response = await fetch(`/api/lists/${params.id}/update-status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${firebaseToken}`
-        },
-        body: JSON.stringify({
-          term: terms[index].term,
-          correct
-        })
-      })
-
-      // Verifica se o token expirou
-      if (response.status !== 200) {
-        await handleRefreshToken();
-
-        const newResponse = await fetch(`/api/lists/${params.id}/update-status`, {
+      const response = await fetchWithTokenRetry(
+        `/api/lists/${params.id}/update-status`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${firebaseToken}` // Agora com token renovado
           },
           body: JSON.stringify({
             term: terms[index].term,
             correct
           })
-        })
-        if (!newResponse.ok) {
-          window.location.reload()
-        }
-      } else if (!response.ok) {
-        window.location.reload()
-      }
+        },
+        firebaseToken,
+        handleRefreshToken
+      )
+
     } catch (err) {
-      window.location.reload()
+      console.error('error: '+err)
     }
 
     setIsMarking(false)

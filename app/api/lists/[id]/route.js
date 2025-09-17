@@ -131,32 +131,47 @@ export async function GET(req, context) {
 
 export async function PATCH(req, context) {
   await dbConnect();
-  const body = await req.json();
-
-  const { id } = await context.params;
-
-  // Valida permissão pelo dono
-  const authorized = await isOwner(req, body.ownerUid);
-  if (!authorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Busca a lista atual primeiro
-  const currentList = await StudyList.findById(id);
-  if (!currentList) {
-    return NextResponse.json({ error: 'Lista não encontrada' }, { status: 404 });
-  }
-
-  // Validações de limite no backend
-  if (body.title && body.title.length > LIMITS.TITLE) {
-    return NextResponse.json({ error: `Título deve ter no máximo ${LIMITS.TITLE} caracteres` }, { status: 400 });
-  }
-
-  if (body.description && body.description.length > LIMITS.DESCRIPTION) {
-    return NextResponse.json({ error: `Descrição deve ter no máximo ${LIMITS.DESCRIPTION} caracteres` }, { status: 400 });
-  }
 
   try {
+    const body = await req.json();
+    const { id } = await context.params;
+
+    // Verificação de autenticação
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = await getAuth().verifyIdToken(token);
+    const uid = decoded.uid;
+
+    // Valida permissão pelo dono
+    const authorized = await isOwner(req, body.ownerUid);
+    if (!authorized) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Verifica se o usuário autenticado é o mesmo do body
+    if (body.ownerUid !== uid) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
+    }
+
+    // Busca a lista atual primeiro
+    const currentList = await StudyList.findById(id);
+    if (!currentList) {
+      return NextResponse.json({ error: 'Lista não encontrada' }, { status: 404 });
+    }
+
+    // Validações de limite no backend
+    if (body.title && body.title.length > LIMITS.TITLE) {
+      return NextResponse.json({ error: `Título deve ter no máximo ${LIMITS.TITLE} caracteres` }, { status: 400 });
+    }
+
+    if (body.description && body.description.length > LIMITS.DESCRIPTION) {
+      return NextResponse.json({ error: `Descrição deve ter no máximo ${LIMITS.DESCRIPTION} caracteres` }, { status: 400 });
+    }
+
     let updatedTerms;
     if (Array.isArray(body.terms)) {
       if (body.terms.length > LIMITS.TOTAL_TERMS) {
@@ -213,33 +228,94 @@ export async function PATCH(req, context) {
     return NextResponse.json(updated);
   } catch (err) {
     console.error("PATCH /api/lists - error:", err);
+
+    // Tratamento específico para token expirado
+    if (err.code === 'auth/id-token-expired') {
+      return NextResponse.json(
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' },
+        { status: 401 }
+      );
+    }
+
+    // Tratamento para token inválido
+    if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
+      return NextResponse.json(
+        { error: 'Token inválido' },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function DELETE(req, context) {
-  await dbConnect()
-  const { id } = await context.params
-  const list = await StudyList.findById(id)
-  if (!list) return NextResponse.json({ error: 'Lista não encontrada' }, { status: 404 })
-
-  const authorized = await isOwner(req, list.ownerUid)
-  if (!authorized) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  await dbConnect();
 
   try {
-    await StudyList.findByIdAndDelete(id)
+    const { id } = await context.params;
 
-    // Decrementar o contador de listas do usuário
-    const ownerDoc = await UserProfile.findOne({ uid: list.ownerUid })
-    if (ownerDoc) {
-      await UserProfile.findByIdAndUpdate(
-        ownerDoc._id,
-        { $inc: { totalLists: -1 } }
-      )
+    // Verificação de autenticação
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
     }
 
-    return NextResponse.json({ success: true })
+    const token = authHeader.split(' ')[1];
+    const decoded = await getAuth().verifyIdToken(token);
+    const uid = decoded.uid;
+
+    const list = await StudyList.findById(id);
+    if (!list) {
+      return NextResponse.json({ error: 'Lista não encontrada' }, { status: 404 });
+    }
+
+    // Valida permissão pelo dono usando a função isOwner
+    const authorized = await isOwner(req, list.ownerUid);
+    if (!authorized) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Verificação adicional de segurança
+    if (list.ownerUid !== uid) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
+    }
+
+    try {
+      await StudyList.findByIdAndDelete(id);
+
+      // Decrementar o contador de listas do usuário
+      const ownerDoc = await UserProfile.findOne({ uid: list.ownerUid });
+      if (ownerDoc) {
+        await UserProfile.findByIdAndUpdate(
+          ownerDoc._id,
+          { $inc: { totalLists: -1 } }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('DELETE /api/lists - error:', err);
+
+    // Tratamento específico para token expirado
+    if (err.code === 'auth/id-token-expired') {
+      return NextResponse.json(
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' },
+        { status: 401 }
+      );
+    }
+
+    // Tratamento para token inválido
+    if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
+      return NextResponse.json(
+        { error: 'Token inválido' },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

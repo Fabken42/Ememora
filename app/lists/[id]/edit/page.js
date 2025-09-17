@@ -12,12 +12,14 @@ import BulkAddTermsModal from '@/components/BulkAddTermsModal';
 import ExistingTermCard from '@/components/ExistingTermCard';
 import NewTermForm from '@/components/NewTermForm';
 import ReorderTermsModal from '@/components/ReorderTermsModal';
+import { fetchWithTokenRetry } from '@/lib/utils';
 
 export default function EditListPage() {
   const { id } = useParams();
   const router = useRouter();
   const userId = useUserStore(state => state.user?.uid);
   const firebaseToken = useUserStore(state => state.firebaseToken);
+  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const isHydrated = useUserStore(state => state.isHydrated);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -155,23 +157,19 @@ export default function EditListPage() {
       if (imagesToDelete.length > 0) {
         try {
           const deletePromises = imagesToDelete.map(imageUrl =>
-            fetch('/api/upload', {
+            fetchWithTokenRetry('/api/upload', {
               method: 'DELETE',
               headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${firebaseToken}`,
               },
               body: JSON.stringify({ imageUrl }),
-            }).then(res => {
-              if (!res.ok) {
-                window.location.reload()
-              }
-              return res;
-            })
+            }, firebaseToken, handleRefreshToken)
           );
 
           await Promise.all(deletePromises);
         } catch (error) {
-          window.location.reload()
+          console.error('Erro ao excluir imagens:', error);
         }
       }
 
@@ -243,7 +241,7 @@ export default function EditListPage() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/lists/${id}`, {
+      const res = await fetchWithTokenRetry(`/api/lists/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -253,12 +251,12 @@ export default function EditListPage() {
           ownerUid: userId,
           ...mergedData
         }),
-      });
+      }, firebaseToken, handleRefreshToken);
 
-      if (!res.ok) window.location.reload()
+      if (!res.ok) console.error('Erro ao salvar lista')
       toast.success('Lista salva!');
     } catch (err) {
-      window.location.reload()
+      console.error('Erro ao salvar lista:', err);
     } finally {
       setIsSaving(false);
     }
@@ -275,7 +273,7 @@ export default function EditListPage() {
   };
 
   const handleImageUpload = async (file, index, field) => {
-    if (!file || !userId || !id) return;
+    if (!file || !userId || !id || !firebaseToken) return;
 
     setUploadingImage(`${index}-${field}`);
     try {
@@ -283,15 +281,18 @@ export default function EditListPage() {
       formData.append('file', file);
       formData.append('folder', 'terms');
       formData.append('userId', userId);
-      formData.append('listId', id); // ← Adiciona listId
-      formData.append('previousImageUrl', terms[index][field]); // ← Imagem anterior
+      formData.append('listId', id);
+      formData.append('previousImageUrl', terms[index][field]);
 
-      const res = await fetch('/api/upload', {
+      const res = await fetchWithTokenRetry('/api/upload', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${firebaseToken}`,
+        },
         body: formData
-      });
+      }, firebaseToken, handleRefreshToken);
 
-      if (!res.ok) window.location.reload()
+      if (!res.ok) console.error('Erro no upload');
 
       const data = await res.json();
       const updated = [...terms];
@@ -300,7 +301,7 @@ export default function EditListPage() {
       saveList({ terms: updated });
 
     } catch (err) {
-      window.location.reload()
+      console.error('Erro no upload:', err);
     } finally {
       setUploadingImage(null);
     }
@@ -308,30 +309,29 @@ export default function EditListPage() {
 
   const handleRemoveImage = async (index, field) => {
     const imageUrl = terms[index][field];
-    if (!imageUrl) return;
+    if (!imageUrl || !firebaseToken) return;
 
     try {
-      // Chama a API para excluir a imagem do Cloudinary
-      const deleteRes = await fetch('/api/upload', {
+      const deleteRes = await fetchWithTokenRetry('/api/upload', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${firebaseToken}`,
         },
         body: JSON.stringify({ imageUrl }),
-      });
+      }, firebaseToken, handleRefreshToken);
 
       if (!deleteRes.ok) {
-        window.location.reload()
+        console.error('Erro ao excluir imagem')
       }
 
-      // Atualiza o estado local
       const updated = [...terms];
       updated[index] = { ...updated[index], [field]: '' };
       setTerms(updated);
       saveList({ terms: updated });
 
     } catch (error) {
-      window.location.reload()
+      console.error('Erro ao excluir imagem:', error);
     }
   };
 
@@ -397,7 +397,7 @@ export default function EditListPage() {
   };
 
   const removeTerm = async (index) => {
-    if (!confirm('Excluir este termo?')) return;
+    if (!confirm('Excluir este termo?') || !firebaseToken) return;
 
     try {
       const termToRemove = terms[index];
@@ -406,23 +406,25 @@ export default function EditListPage() {
       const imagesToDelete = [termToRemove.termImage, termToRemove.definitionImage].filter(Boolean);
 
       if (imagesToDelete.length > 0) {
-        // Exclui todas as imagens em paralelo
         const deletePromises = imagesToDelete.map(imageUrl =>
-          fetch('/api/upload', {
+          fetchWithTokenRetry('/api/upload', {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${firebaseToken}`,
             },
             body: JSON.stringify({ imageUrl }),
-          }).then(res => {
-            if (!res.ok) {
-              window.location.reload()
-            }
-            return res;
-          }).catch(error => {
-            window.location.reload()
-            return null;
-          })
+          }, firebaseToken, handleRefreshToken)
+            .then(res => {
+              if (!res.ok) {
+                console.error('Erro ao excluir imagem')
+              }
+              return res;
+            })
+            .catch(error => {
+              console.error('Erro ao excluir imagem:', error);
+              return null;
+            })
         );
 
         await Promise.all(deletePromises);
@@ -435,7 +437,7 @@ export default function EditListPage() {
       saveList({ terms: updated });
 
     } catch (error) {
-      window.location.reload()
+      console.error('Error: ' + error)
     }
   };
 
@@ -445,17 +447,16 @@ export default function EditListPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Tem certeza que deseja excluir esta lista? Esta ação não pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir esta lista? Esta ação não pode ser desfeita.') || !firebaseToken) return;
 
     setIsSaving(true);
     try {
-      // Primeiro, exclui todas as imagens da lista do Cloudinary
       const allImages = terms.flatMap(term =>
         [term.termImage, term.definitionImage].filter(Boolean)
       );
 
       if (allImages.length > 0) {
-        const deleteRes = await fetch('/api/upload/delete-folder', {
+        const deleteRes = await fetchWithTokenRetry('/api/upload/delete-folder', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -465,27 +466,26 @@ export default function EditListPage() {
             folderPath: `terms/${userId}/${id}`,
             images: allImages
           }),
-        });
+        }, firebaseToken, handleRefreshToken);
 
         if (!deleteRes.ok) {
-          window.location.reload()
+          console.error('Erro ao deletar')
         }
       }
 
-      // Depois exclui a lista do banco de dados
-      const res = await fetch(`/api/lists/${id}`, {
+      const res = await fetchWithTokenRetry(`/api/lists/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${firebaseToken}` },
-      });
+      }, firebaseToken, handleRefreshToken);
 
       if (res.ok) {
         toast.success('Lista excluída com sucesso!');
         router.push(`/users/${userId}`);
       } else {
-        window.location.reload()
+        console.error('Erro ao excluir lista')
       }
     } catch (err) {
-      window.location.reload()
+      console.error('Erro ao excluir lista:', err);
     } finally {
       setIsSaving(false);
     }

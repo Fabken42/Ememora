@@ -1,17 +1,27 @@
-// app/api/lists/[id]/feedback/route.js
+import { NextResponse } from 'next/server'
 import dbConnect from '@/lib/db'
 import StudyList from '@/models/StudyList'
-import { NextResponse } from 'next/server'
+import { getAuth } from 'firebase-admin/auth'
 
 export async function POST(req, context) {
   await dbConnect()
 
   try {
-    const { id } = await context.params
-    const { uid, vote } = await req.json()
+    // Verificação de autenticação
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
+    }
 
-    if (!uid || !['like', 'dislike'].includes(vote)) {
-      return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
+    const token = authHeader.split(' ')[1]
+    const decoded = await getAuth().verifyIdToken(token)
+    const uid = decoded.uid // Obtém o UID do token autenticado
+
+    const { id } = await context.params
+    const { vote } = await req.json() // Agora só recebe o vote
+
+    if (!['like', 'dislike'].includes(vote)) {
+      return NextResponse.json({ error: 'Parâmetro vote inválido' }, { status: 400 })
     }
 
     const list = await StudyList.findById(id)
@@ -60,10 +70,28 @@ export async function POST(req, context) {
       likes: list.likes,
       dislikes: list.dislikes,
       likedBy: list.likedBy,
-      dislikedBy: list.dislikedBy
+      dislikedBy: list.dislikedBy,
+      userVote: vote === 'like' ? 'like' : vote === 'dislike' ? 'dislike' : null
     })
   } catch (err) {
     console.error('POST /lists/[id]/feedback - erro:', err)
+    
+    // Tratamento específico para token expirado
+    if (err.code === 'auth/id-token-expired') {
+      return NextResponse.json(
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' }, 
+        { status: 401 }
+      )
+    }
+    
+    // Tratamento para token inválido
+    if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
+      return NextResponse.json(
+        { error: 'Token inválido' }, 
+        { status: 401 }
+      )
+    }
+    
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
