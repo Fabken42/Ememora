@@ -26,7 +26,7 @@ export default function FlashcardStudyPage() {
   const [loadingInfo, setLoadingInfo] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [isMarking, setIsMarking] = useState(false)
-  
+
   const firebaseToken = useUserStore(state => state.firebaseToken);
   const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const params = useParams()
@@ -120,28 +120,28 @@ export default function FlashcardStudyPage() {
     try {
       if (!firebaseToken) {
         console.error("Token do Firebase não disponível")
-        setIsMarking(false)
-        return
-      }
-
-      const response = await fetchWithTokenRetry(
-        `/api/lists/${params.id}/update-status`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      } else {
+        // Dispara o update sem await — não bloqueia a interface
+        fetchWithTokenRetry(
+          `/api/lists/${params.id}/update-status`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              term: terms[index].term,
+              correct
+            })
           },
-          body: JSON.stringify({
-            term: terms[index].term,
-            correct
-          })
-        },
-        firebaseToken,
-        handleRefreshToken
-      )
-
+          firebaseToken,
+          handleRefreshToken
+        ).catch(err => {
+          console.error("Erro ao atualizar progresso:", err)
+        })
+      }
     } catch (err) {
-      console.error('error: '+err)
+      console.error("Erro inesperado:", err)
     }
 
     setIsMarking(false)

@@ -79,7 +79,10 @@ export default function Quiz({
       {/* Term Header */}
       <div className="flex flex-col items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-semibold text-center break-all">{term.term}</h2>
+          <h2 className="text-3xl font-bold text-center break-all text-white leading-snug">
+            {term.term}
+          </h2>
+
           {isAuthenticated && <StatusIcon className={`text-3xl ${color} shrink-0`} />}
         </div>
 
@@ -103,12 +106,12 @@ export default function Quiz({
               aria-label="Mostrar dica"
             >
               <FiInfo className="w-5 h-5" /> {/* Ícone maior */}
-              <span className="text-sm">Dica</span>
+              <span className="text-base font-medium">Dica</span>
             </button>
 
             {/* Tooltip que aparece tanto no hover quanto no click */}
             {(showHint) && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 shadow-lg z-10 border border-indigo-500/30 break-words">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-72 bg-[#2d2b55] text-gray-200 text-base rounded-lg p-4 shadow-lg z-10 border border-indigo-500/30 break-words">
                 {term.hint}
                 <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-l border-b border-indigo-500/30"></div>
 
@@ -161,7 +164,7 @@ export default function Quiz({
               key={i}
               onClick={() => handleClick(opt.text)}
               disabled={!!selected || showResult}
-              className={`${border} ${bg} px-4 py-3 rounded-lg transition-all duration-200 flex flex-col items-center ${!selected && !showResult ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
+              className={`${border} ${bg} px-6 py-4 rounded-xl transition-all duration-200 flex flex-col items-center ${!selected && !showResult ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
                 }`}
             >
               {opt.image && (
@@ -173,12 +176,13 @@ export default function Quiz({
                   />
                 </div>
               )}
-              <span className={`font-medium ${textColor} break-all`}>
+              <span className={`text-lg font-semibold ${textColor} text-center break-all leading-relaxed`}>
                 {opt.text}
               </span>
 
+
               {(showResult || selected) && opt.text === correctAnswer && (
-                <span className="text-green-400 text-xs mt-1 flex items-center gap-1">
+                <span className="text-green-400 text-sm mt-2 flex items-center gap-2 font-medium">
                   <FiCheck className="w-3 h-3" />
                   Resposta correta
                 </span>

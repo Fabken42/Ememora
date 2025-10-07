@@ -1,106 +1,83 @@
-// /app/AuthProvider.js
 'use client'
 
 import { useEffect } from 'react'
-import { getAuth, onAuthStateChanged, onIdTokenChanged } from 'firebase/auth'
+import { getAuth, onIdTokenChanged } from 'firebase/auth'
 import useUserStore from '@/store/useUserStore'
 
-async function createProfileIfMissing(user) {
-  const token = await user.getIdToken()
-
-  const existsRes = await fetch(`/api/users/${user.uid}`, {
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}` },
-  })
-
-  let exists = null
-  try {
-    if (existsRes.ok) exists = await existsRes.json()
-  } catch {}
-
-  if (!exists || !exists.uid) {
-    const displayNameFallback =
-      (user.displayName || (user.email ? user.email.split('@')[0] : 'user')) + Date.now()
-
-    const res = await fetch(`/api/users/${user.uid}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: displayNameFallback,
-        email: user.email,
-        image: user.photoURL || '',
-        bio: '',
-      }),
-    })
-
-    if (!res.ok) {
-      const msg = await res.text().catch(() => 'Falha ao criar perfil')
-      throw new Error(msg)
-    }
-
-    return {
-      uid: user.uid,
-      email: user.email,
-      name: displayNameFallback,
-      image: user.photoURL || '',
-      bio: '',
-    }
-  }
-
-  return {
-    uid: exists.uid,
-    email: exists.email,
-    name: exists.name,
-    image: exists.image || '',
-    bio: exists.bio || '',
-  }
-}
-
 export default function AuthProvider({ children }) {
-  const setUser = useUserStore((state) => state.setUser)
-  const setFirebaseToken = useUserStore((state) => state.setFirebaseToken)
+  const setUser = useUserStore((s) => s.setUser)
+  const setFirebaseToken = useUserStore((s) => s.setFirebaseToken)
+  const logout = useUserStore((s) => s.logout)
 
   useEffect(() => {
     const auth = getAuth()
 
-    // Controle do estado do usuário
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        if (!firebaseUser.emailVerified && firebaseUser.providerData[0]?.providerId === 'password') {
-          setUser(null)
-          setFirebaseToken(null)
-          return
-        }
-
-        const token = await firebaseUser.getIdToken()
-        const profileData = await createProfileIfMissing(firebaseUser)
-
-        setFirebaseToken(token)
-        setUser(profileData)
-      } else {
+    // Atualiza token e perfil sempre que o token mudar (login, refresh, logout)
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
         setUser(null)
         setFirebaseToken(null)
+        return
+      }
+
+      try {
+        const token = await firebaseUser.getIdToken()
+        setFirebaseToken(token)
+
+        // Atualiza perfil local (se necessário)
+        const profileRes = await fetch(`/api/users/${firebaseUser.uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        let profileData
+        if (profileRes.ok) {
+          profileData = await profileRes.json()
+        } else {
+          // Se não existir, cria o perfil
+          await fetch(`/api/users/${firebaseUser.uid}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: firebaseUser.displayName || firebaseUser.email || 'Usuário',
+              email: firebaseUser.email,
+              image: firebaseUser.photoURL || '',
+              bio: '',
+            }),
+          })
+          profileData = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || firebaseUser.email || 'Usuário',
+            email: firebaseUser.email,
+            image: firebaseUser.photoURL || '',
+            bio: '',
+          }
+        }
+
+        setUser(profileData)
+      } catch (err) {
+        console.error('Erro no onIdTokenChanged:', err)
+        logout()
       }
     })
 
-    // Atualização automática do token
-    const unsubscribeToken = onIdTokenChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const newToken = await firebaseUser.getIdToken(true)
+    // Força renovação a cada 55 minutos
+    const interval = setInterval(async () => {
+      const user = auth.currentUser
+      if (user) {
+        const newToken = await user.getIdToken(true)
         setFirebaseToken(newToken)
-      } else {
-        setFirebaseToken(null)
+        console.log('Token renovado manualmente. bujumbura')
       }
-    })
+    }, 55 * 60 * 1000)
 
     return () => {
-      unsubscribeAuth()
-      unsubscribeToken()
+      unsubscribe()
+      clearInterval(interval)
     }
-  }, [setUser, setFirebaseToken])
+  }, [setUser, setFirebaseToken, logout])
 
   return children
 }

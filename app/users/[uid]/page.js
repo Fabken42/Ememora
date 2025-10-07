@@ -193,6 +193,9 @@ export default function UserProfilePage({ params }) {
 
       const res = await fetch('/api/upload', {
         method: 'POST',
+        headers:{
+          'Authorization': `Bearer ${firebaseToken}`
+        },
         body: formData,
       })
 

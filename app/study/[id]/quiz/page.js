@@ -170,7 +170,7 @@ export default function QuizStudyPage() {
         handleRefreshToken
       )
 
-      
+
     } catch (err) {
       console.error('error: ', err)
     }
@@ -306,11 +306,14 @@ export default function QuizStudyPage() {
         <div className="flex-1 flex flex-col justify-center">
           {/* Header */}
           <div className="mb-6 text-center p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
-            <h1 className="text-2xl font-bold mb-2 break-all">
+            <h1 className="text-3xl font-extrabold mb-4 break-all text-white leading-snug">
               {title}
-              {reviewMode && <span className="text-yellow-400 text-base ml-2">(Modo Revisão)</span>}
+              {reviewMode && (
+                <span className="text-yellow-400 text-lg ml-3 font-semibold">(Modo Revisão)</span>
+              )}
             </h1>
-            <div className="flex justify-center gap-6 text-md font-medium">
+
+            <div className="flex justify-center gap-8 text-lg font-semibold">
               <span className="text-green-400 flex items-center gap-1">
                 <FiCheck className="w-4 h-4" />
                 {rightAnswer}
@@ -352,7 +355,7 @@ export default function QuizStudyPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-sm text-gray-300">
+              <p className="text-base text-gray-200 font-medium">
                 Pergunta <span className="font-medium">{index + 1}</span> de {terms.length}
                 {reviewMode && (
                   <span className="ml-2">

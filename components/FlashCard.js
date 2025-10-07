@@ -33,7 +33,7 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
     <div className="flex flex-col items-center">
       {/* Card Container */}
       <div
-        className="w-full max-w-md h-64 perspective-1000 cursor-pointer mb-8"
+        className="w-full max-w-md h-80 perspective-1000 cursor-pointer mb-10"
         onClick={() => setFlipped(prev => !prev)}
       >
         {/* Card Inner */}
@@ -48,7 +48,7 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
             </div>
 
             <div className="flex-1 flex flex-col justify-center items-center text-center">
-              <h2 className="text-2xl font-semibold mb-3 break-all">{term.term}</h2>
+              <h2 className="text-3xl font-bold mb-4 break-all leading-snug">{term.term}</h2>
 
               {term.termImage && (
                 <div className="w-full h-32 bg-[#2d2b55] rounded-lg overflow-hidden mb-3 border border-indigo-500/30">
@@ -75,7 +75,7 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
 
                   {/* Tooltip que aparece tanto no hover quanto no click */}
                   {(showHint) && (
-                    <div className="fixed md:absolute bottom-4 md:bottom-auto md:top-full left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:mt-2 md:w-64 bg-[#2d2b55] text-gray-200 text-sm rounded-lg p-3 shadow-lg z-50 border border-indigo-500/30 break-words">
+                    <div className="fixed md:absolute bottom-4 md:bottom-auto md:top-full left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:mt-2 md:w-72 bg-[#2d2b55] text-gray-200 text-base rounded-lg p-4 shadow-lg z-50 border border-indigo-500/30 break-all">
                       {term.hint}
 
                       {/* Seta - aparece apenas no desktop */}
@@ -96,11 +96,12 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
                 </div>
               )}
               {showResult && (
-                <p className={`text-sm font-medium ${wasCorrect ? 'text-green-400' : 'text-red-400'} mt-2`}>
+                <p className={`text-base font-semibold ${wasCorrect ? 'text-green-400' : 'text-red-400'} mt-3`}>
                   {wasCorrect ? '✓ Correto' : '✗ Errado'}
                 </p>
               )}
-              <p className="mt-2 text-xs text-indigo-400">Clique para ver a definição</p>
+              <p className="mt-3 text-sm text-indigo-300">Clique para ver a definição</p>
+
             </div>
           </div>
 
@@ -112,7 +113,9 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
             </div>
 
             <div className="flex-1 flex flex-col justify-center items-center text-center">
-              <p className="text-xl mb-3 break-all">{term.definition}</p>
+              <p className="text-2xl font-medium mb-4 break-all text-gray-100 leading-relaxed">
+                {term.definition}
+              </p>
 
               {term.definitionImage && (
                 <div className="w-full h-32 bg-[#2d2b55] rounded-lg overflow-hidden mb-3 border border-indigo-500/30">
@@ -146,7 +149,8 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
               onMark(false);
             }}
             disabled={isMarking}
-            className="flex-1 bg-[#2d2b55] hover:bg-red-500/20 text-red-400 px-6 py-3 rounded-lg border border-red-500/30 transition-colors font-medium flex items-center justify-center gap-2"
+            className="flex-1 bg-[#2d2b55] hover:bg-red-500/30 text-red-300 text-lg px-6 py-3 rounded-xl border border-red-500/40 transition-colors font-semibold flex items-center justify-center gap-3"
+
           >
             <FiX className="w-5 h-5" />
             Errei
@@ -157,7 +161,8 @@ export default function Flashcard({ term, onMark, showResult = false, wasCorrect
               onMark(true);
             }}
             disabled={isMarking}
-            className="flex-1 bg-[#2d2b55] hover:bg-green-500/20 text-green-400 px-6 py-3 rounded-lg border border-green-500/30 transition-colors font-medium flex items-center justify-center gap-2"
+            className="flex-1 bg-[#2d2b55] hover:bg-green-500/30 text-green-300 text-lg px-6 py-3 rounded-xl border border-green-500/40 transition-colors font-semibold flex items-center justify-center gap-3"
+
           >
             <FiCheck className="w-5 h-5" />
             Acertei
