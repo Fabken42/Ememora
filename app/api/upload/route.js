@@ -2,17 +2,17 @@
 import { NextResponse } from 'next/server'
 import cloudinary from '@/lib/cloudinary'
 import { getAuth } from 'firebase-admin/auth'
+import { cookies } from "next/headers";
 
 export async function POST(req) {
   try {
     // Verificação de autenticação
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
     }
-
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid
 
     const formData = await req.formData()
@@ -131,13 +131,13 @@ const extractPublicId = (url) => {
 export async function DELETE(req) {
   try {
     // Verificação de autenticação
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
     }
 
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid
 
     const { imageUrl } = await req.json()

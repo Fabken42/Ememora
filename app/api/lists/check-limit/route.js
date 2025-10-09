@@ -3,19 +3,20 @@ import { getAuth } from 'firebase-admin/auth'
 import dbConnect from '@/lib/db'
 import UserProfile from '@/models/UserProfile'
 import { LIMITS } from '@/lib/utils'
+import { cookies } from 'next/headers'
 
 export async function GET(req) {
     await dbConnect()
-
     try {
-        const authHeader = req.headers.get('authorization')
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
+        const cookieStore = await cookies()
+        const sessionCookie = cookieStore.get('session')?.value
+        if (!sessionCookie) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const token = authHeader.split(' ')[1]
-        const decoded = await getAuth().verifyIdToken(token)
+        const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
         const uid = decoded.uid
+
 
         // Buscar usuário pelo uid do Firebase
         const user = await UserProfile.findOne({ uid })

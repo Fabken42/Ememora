@@ -17,17 +17,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const router = useRouter()
   const setUserStore = useUserStore(state => state.setUser)
-  const setFirebaseToken = useUserStore(state => state.setFirebaseToken)
 
   const createProfileIfMissing = async (user) => {
-    const token = await user.getIdToken()
-
     // Verifica se o usuário já existe no banco
     const existsRes = await fetch(`/api/users/${user.uid}`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      credentials: 'include',
     })
 
     let exists = null
@@ -45,8 +40,8 @@ export default function LoginPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: displayNameFallback,
           email: user.email,
@@ -89,10 +84,15 @@ export default function LoginPage() {
       return;
     }
     const profileData = await createProfileIfMissing(firebaseUser)
-    const token = await firebaseUser.getIdToken()
+    const idToken = await firebaseUser.getIdToken()
+    await fetch("/api/session-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    })
+
 
     setUserStore(profileData)
-    setFirebaseToken(token)
     router.push('/')
   }
 

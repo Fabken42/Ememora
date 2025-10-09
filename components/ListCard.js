@@ -13,7 +13,6 @@ import { FiBook, FiCalendar, FiEdit, FiHelpCircle, FiLayers, FiStar, FiTag, FiTh
 export default function ListCard({ list }) {
   const router = useRouter()
   const user = useUserStore(state => state.user)
-  const firebaseToken = useUserStore(state => state.firebaseToken);
   const uid = user?.uid
 
   const [likes, setLikes] = useState(list.likes || 0)
@@ -98,57 +97,41 @@ export default function ListCard({ list }) {
   }
 
   const sendFeedbackToServer = async (voteType) => {
-    if (!firebaseToken) {
-      throw new Error('Token não disponível');
+    if (!uid) {
+      throw new Error('Usuário não autenticado');
     }
 
     const res = await fetch(`/api/lists/${list._id}/feedback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${firebaseToken}`
+        'credentials': 'include',
       },
-      body: JSON.stringify({ vote: voteType }), // Remove o uid do body
+      body: JSON.stringify({ vote: voteType }), 
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-
-      // Tratamento específico para token expirado
-      if (data.code === 'TOKEN_EXPIRED') {
-        throw new Error('TOKEN_EXPIRED');
-      }
-
-      throw new Error(data?.error || 'Falha ao enviar feedback');
+      throw new Error('Falha ao enviar feedback');
     }
-
     return res.json();
   };
 
   const sendFavoriteToServer = async (favorite) => {
-    if (!firebaseToken) {
-      throw new Error('Token não disponível');
+    if (!uid) {
+      throw new Error('Usuário não autenticado');
     }
 
     const res = await fetch(`/api/lists/${list._id}/favorite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${firebaseToken}`
+        'credentials': 'include',
       },
-      body: JSON.stringify({ favorite }), // Remove o uid do body, pois vamos pegar do token
+      body: JSON.stringify({ favorite }), 
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-
-      // Tratamento específico para token expirado
-      if (data.code === 'TOKEN_EXPIRED') {
-        // Você pode querer renovar o token automaticamente aqui
-        throw new Error('TOKEN_EXPIRED');
-      }
-
-      throw new Error(data?.error || 'Falha ao favoritar');
+      throw new Error('Falha ao favoritar');
     }
 
     return res.json();

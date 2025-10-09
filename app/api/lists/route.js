@@ -5,6 +5,7 @@ import StudyList from '@/models/StudyList'
 import UserProfile from '@/models/UserProfile'
 import { getAuth } from 'firebase-admin/auth'
 import { LIMITS } from '@/lib/utils'
+import { cookies } from 'next/headers'
 
 export async function GET(req) {
   await dbConnect()
@@ -27,11 +28,11 @@ export async function GET(req) {
   const uidParam = searchParams.get('uid')
 
   let authenticatedUid = null
-  const authHeader = req.headers.get('authorization')
-  if (authHeader?.startsWith('Bearer ')) {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get("session")?.value
+  if (sessionCookie) {
     try {
-      const token = authHeader.split(' ')[1]
-      const decoded = await getAuth().verifyIdToken(token)
+      const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
       authenticatedUid = decoded.uid
     } catch (err) {
       console.warn('Token inválido:', err.message)
@@ -383,18 +384,16 @@ export async function GET(req) {
   }
 }
 
-//api/lists/route.js
 export async function POST(req) {
   await dbConnect()
 
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
     }
-
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid
 
     // Buscar usuário pelo uid do Firebase

@@ -14,7 +14,7 @@ export default function UserProfilePage({ params }) {
   const inputRef = useRef(null)
   const { setLastHomeOrUserPage } = useNavigationStore()
   const { uid } = params
-  const { user, firebaseToken, logout, setUser } = useUserStore()
+  const { user, logout, setUser } = useUserStore()
   const isOwner = user?.uid === uid
 
   const [lists, setLists] = useState([])
@@ -94,7 +94,7 @@ export default function UserProfilePage({ params }) {
         const res = await fetch(
           `/api/lists?ownerUid=${uid}${catParam}${sortParam}${personalFilterParam}&page=${page}&limit=${LISTS_PAGE_SIZE}`,
           {
-            headers: firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}
+            credentials: 'include'
           }
         )
         const data = await res.json()
@@ -109,11 +109,9 @@ export default function UserProfilePage({ params }) {
     }
 
     if (uid) fetchLists()
-  }, [uid, category, sortBy, personalFilter, page, firebaseToken, isOwner])
+  }, [uid, category, sortBy, personalFilter, page, isOwner])
 
   const handleSave = async (overrides = {}) => {
-    if (!firebaseToken) return
-
     // Validação do nome  
     const nameToValidate = overrides.name !== undefined ? overrides.name : editName
     if (nameToValidate !== undefined && nameToValidate !== null) {
@@ -131,7 +129,7 @@ export default function UserProfilePage({ params }) {
     // Validação da bio
     const bioToValidate = overrides.bio || editBio
     if (bioToValidate && bioToValidate.length > LIMITS.USER_BIO_MAX) {
-      toast.error(`A biografia deve ter no máximo LIMITS.USER_BIO_MAX caracteres`)
+      toast.error(`A biografia deve ter no máximo ${LIMITS.USER_BIO_MAX} caracteres`)
       return
     }
 
@@ -140,8 +138,8 @@ export default function UserProfilePage({ params }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${firebaseToken}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: editName,
           bio: editBio,
@@ -158,31 +156,16 @@ export default function UserProfilePage({ params }) {
         }
         toast.success('Perfil atualizado!');
       } else {
-        const errorData = await res.json().catch(() => ({}));
-
-        // Tratamento específico para token expirado
-        if (errorData.code === 'TOKEN_EXPIRED') {
-          // Você pode querer renovar o token automaticamente aqui
-          throw new Error('TOKEN_EXPIRED');
-        }
-
-        throw new Error(errorData.error || 'Erro ao atualizar perfil');
+        throw new Error('Erro ao atualizar perfil');
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
-
-      if (error.message === 'TOKEN_EXPIRED') {
-        // Lógica para renovar token e tentar novamente
-        await handleRefreshToken();
-        // Tentar novamente a requisição...
-      } else {
-        toast.error(error.message || 'Erro ao salvar alterações');
-      }
+      toast.error(error.message || 'Erro ao salvar perfil');
     }
   }
 
   const handleImageUpload = async (file) => {
-    if (!file || !user?.uid || !profile?.image) return
+    if (!file || !user?.uid) return
     setUploading(true)
     try {
       const formData = new FormData()
@@ -193,9 +176,7 @@ export default function UserProfilePage({ params }) {
 
       const res = await fetch('/api/upload', {
         method: 'POST',
-        headers:{
-          'Authorization': `Bearer ${firebaseToken}`
-        },
+        credentials: 'include',
         body: formData,
       })
 

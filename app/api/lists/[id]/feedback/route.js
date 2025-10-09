@@ -2,20 +2,21 @@ import { NextResponse } from 'next/server'
 import dbConnect from '@/lib/db'
 import StudyList from '@/models/StudyList'
 import { getAuth } from 'firebase-admin/auth'
+import { cookies } from "next/headers";
 
 export async function POST(req, context) {
   await dbConnect()
 
   try {
-    // Verificação de autenticação
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get('session')?.value
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
-    const uid = decoded.uid // Obtém o UID do token autenticado
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
+    const uid = decoded.uid
+
 
     const { id } = await context.params
     const { vote } = await req.json() // Agora só recebe o vote
@@ -75,23 +76,23 @@ export async function POST(req, context) {
     })
   } catch (err) {
     console.error('POST /lists/[id]/feedback - erro:', err)
-    
+
     // Tratamento específico para token expirado
     if (err.code === 'auth/id-token-expired') {
       return NextResponse.json(
-        { error: 'Token expirado', code: 'TOKEN_EXPIRED' }, 
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' },
         { status: 401 }
       )
     }
-    
+
     // Tratamento para token inválido
     if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
       return NextResponse.json(
-        { error: 'Token inválido' }, 
+        { error: 'Token inválido' },
         { status: 401 }
       )
     }
-    
+
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

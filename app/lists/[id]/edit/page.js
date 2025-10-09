@@ -12,14 +12,12 @@ import BulkAddTermsModal from '@/components/BulkAddTermsModal';
 import ExistingTermCard from '@/components/ExistingTermCard';
 import NewTermForm from '@/components/NewTermForm';
 import ReorderTermsModal from '@/components/ReorderTermsModal';
-import { fetchWithTokenRetry } from '@/lib/utils';
 
 export default function EditListPage() {
   const { id } = useParams();
   const router = useRouter();
-  const userId = useUserStore(state => state.user?.uid);
-  const firebaseToken = useUserStore(state => state.firebaseToken);
-  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
+  const user = useUserStore(state => state.user);
+  const userId = user?.uid;
   const isHydrated = useUserStore(state => state.isHydrated);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,7 +43,7 @@ export default function EditListPage() {
     const checkAuthAndAuthorization = async () => {
       if (!isHydrated) return;
 
-      if (!userId || !firebaseToken) {
+      if (!userId) {
         toast.error('Você precisa estar logado para editar uma lista.');
         router.push('/login');
         return;
@@ -53,7 +51,7 @@ export default function EditListPage() {
 
       try {
         const res = await fetch(`/api/lists/${id}`, {
-          headers: { Authorization: `Bearer ${firebaseToken}` }
+          credentials: "include",
         });
 
         if (!res.ok) {
@@ -85,7 +83,7 @@ export default function EditListPage() {
     if (id) {
       checkAuthAndAuthorization();
     }
-  }, [id, userId, firebaseToken, router, isHydrated]);
+  }, [id, userId, router, isHydrated]);
 
   const handleBulkAddTerms = async (newTerms) => {
     if (terms.length + newTerms.length > LIMITS.TOTAL_TERMS) {
@@ -157,15 +155,13 @@ export default function EditListPage() {
       if (imagesToDelete.length > 0) {
         try {
           const deletePromises = imagesToDelete.map(imageUrl =>
-            fetchWithTokenRetry('/api/upload', {
+            fetch('/api/upload', {
               method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${firebaseToken}`,
-              },
+              credentials: "include",
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ imageUrl }),
-            }, firebaseToken, handleRefreshToken)
-          );
+            })
+          )
 
           await Promise.all(deletePromises);
         } catch (error) {
@@ -203,7 +199,7 @@ export default function EditListPage() {
   };
 
   const saveList = async (updatedData) => {
-    if (!userId || !firebaseToken) {
+    if (!userId) {
       toast.error('Você precisa estar logado para salvar alterações.');
       router.push('/login');
       return;
@@ -241,17 +237,21 @@ export default function EditListPage() {
 
     setIsSaving(true);
     try {
-      const res = await fetchWithTokenRetry(`/api/lists/${id}`, {
+      if (!userId) {
+        toast.error('Você precisa estar logado para salvar alterações.');
+        router.push('/login');
+        return;
+      }
+
+      const res = await fetch(`/api/lists/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${firebaseToken}`,
-        },
+        credentials: "include",
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerUid: userId,
-          ...mergedData
+          ...mergedData,
         }),
-      }, firebaseToken, handleRefreshToken);
+      });
 
       if (!res.ok) console.error('Erro ao salvar lista')
       toast.success('Lista salva!');
@@ -273,7 +273,7 @@ export default function EditListPage() {
   };
 
   const handleImageUpload = async (file, index, field) => {
-    if (!file || !userId || !id || !firebaseToken) return;
+    if (!file || !userId || !id) return;
 
     setUploadingImage(`${index}-${field}`);
     try {
@@ -284,13 +284,11 @@ export default function EditListPage() {
       formData.append('listId', id);
       formData.append('previousImageUrl', terms[index][field]);
 
-      const res = await fetchWithTokenRetry('/api/upload', {
+      const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${firebaseToken}`,
-        },
-        body: formData
-      }, firebaseToken, handleRefreshToken);
+        credentials: "include",
+        body: formData,
+      });
 
       if (!res.ok) console.error('Erro no upload');
 
@@ -309,17 +307,15 @@ export default function EditListPage() {
 
   const handleRemoveImage = async (index, field) => {
     const imageUrl = terms[index][field];
-    if (!imageUrl || !firebaseToken) return;
+    if (!imageUrl) return;
 
     try {
-      const deleteRes = await fetchWithTokenRetry('/api/upload', {
+      const deleteRes = await fetch('/api/upload', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${firebaseToken}`,
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl }),
-      }, firebaseToken, handleRefreshToken);
+      })
 
       if (!deleteRes.ok) {
         console.error('Erro ao excluir imagem')
@@ -397,7 +393,7 @@ export default function EditListPage() {
   };
 
   const removeTerm = async (index) => {
-    if (!confirm('Excluir este termo?') || !firebaseToken) return;
+    if (!confirm('Excluir este termo?') || !userId) return;
 
     try {
       const termToRemove = terms[index];
@@ -407,14 +403,14 @@ export default function EditListPage() {
 
       if (imagesToDelete.length > 0) {
         const deletePromises = imagesToDelete.map(imageUrl =>
-          fetchWithTokenRetry('/api/upload', {
+          fetch('/api/upload', {
             method: 'DELETE',
+            credentials: "include",
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${firebaseToken}`,
             },
             body: JSON.stringify({ imageUrl }),
-          }, firebaseToken, handleRefreshToken)
+          })
             .then(res => {
               if (!res.ok) {
                 console.error('Erro ao excluir imagem')
@@ -447,7 +443,7 @@ export default function EditListPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Tem certeza que deseja excluir esta lista? Esta ação não pode ser desfeita.') || !firebaseToken) return;
+    if (!confirm('Tem certeza que deseja excluir esta lista? Esta ação não pode ser desfeita.') || !userId) return;
 
     setIsSaving(true);
     try {
@@ -456,27 +452,27 @@ export default function EditListPage() {
       );
 
       if (allImages.length > 0) {
-        const deleteRes = await fetchWithTokenRetry('/api/upload/delete-folder', {
+        const deleteRes = await fetch('/api/upload/delete-folder', {
           method: 'POST',
+          credentials: "include",
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${firebaseToken}`,
           },
           body: JSON.stringify({
             folderPath: `terms/${userId}/${id}`,
             images: allImages
           }),
-        }, firebaseToken, handleRefreshToken);
+        });
 
         if (!deleteRes.ok) {
-          console.error('Erro ao deletar')
+          console.error('Erro ao deletar pasta de imagens');
         }
       }
 
-      const res = await fetchWithTokenRetry(`/api/lists/${id}`, {
+      const res = await fetch(`/api/lists/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${firebaseToken}` },
-      }, firebaseToken, handleRefreshToken);
+        credentials: "include",
+      });
 
       if (res.ok) {
         toast.success('Lista excluída com sucesso!');

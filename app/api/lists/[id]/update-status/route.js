@@ -3,28 +3,21 @@ import dbConnect from "@/lib/db";
 import StudyList from "@/models/StudyList";
 import { NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
+import { cookies } from "next/headers";
 
 export async function POST(req, context) {
   try {
-    // --- 1. Autenticação Firebase ---
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 });
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value;
+    if (!sessionCookie) {
+      return NextResponse.json({ error: "Sessão não encontrada" }, { status: 401 });
     }
-    const token = authHeader.split(" ")[1];
 
     let decoded;
     try {
-      decoded = await getAuth().verifyIdToken(token);
-    } catch (error) {
-      if (error.code === 'auth/id-token-expired') {
-        // Token expirado - retorna erro específico para o cliente renovar
-        return NextResponse.json(
-          { error: "Token expirado", code: "TOKEN_EXPIRED" },
-          { status: 401 }
-        );
-      }
-      throw error;
+      decoded = await getAuth().verifySessionCookie(sessionCookie, true);
+    } catch (err) {
+      return NextResponse.json({ error: "Sessão inválida ou expirada" }, { status: 401 });
     }
 
     const uid = decoded.uid;

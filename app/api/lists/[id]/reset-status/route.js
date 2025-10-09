@@ -3,20 +3,22 @@ import { NextResponse } from 'next/server'
 import dbConnect from '@/lib/db'
 import StudyList from '@/models/StudyList'
 import { getAuth } from 'firebase-admin/auth'
+import { cookies } from "next/headers";
 
 export async function PATCH(req, context) {
   await dbConnect()
 
   try {
     const { id } = await context.params
-    // --- Autenticação Firebase ---
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get('session')?.value
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
+
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid
+
 
     const list = await StudyList.findById(id)
     if (!list) {

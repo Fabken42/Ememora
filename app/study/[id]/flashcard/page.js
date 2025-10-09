@@ -4,12 +4,11 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Flashcard from '@/components/FlashCard'
 import EndGameScreen from '@/components/EndGameScreen'
-import useUserStore from '@/store/useUserStore'
 import GameSettings from '@/components/GameSettings'
 import { FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import BackButton from '@/components/BackButton'
-import { fetchWithTokenRetry } from '@/lib/utils'
+import useUserStore from '@/store/useUserStore'
 
 export default function FlashcardStudyPage() {
   const [index, setIndex] = useState(0)
@@ -26,9 +25,8 @@ export default function FlashcardStudyPage() {
   const [loadingInfo, setLoadingInfo] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [isMarking, setIsMarking] = useState(false)
+  const user = useUserStore(state => state.user)
 
-  const firebaseToken = useUserStore(state => state.firebaseToken);
-  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const params = useParams()
 
   const fetchListData = async (options = {}) => {
@@ -38,11 +36,6 @@ export default function FlashcardStudyPage() {
       setLoadingInfo(true)
       setFetchError(null)
 
-      const headers = {}
-      if (firebaseToken) {
-        headers['Authorization'] = `Bearer ${firebaseToken}`
-      }
-
       // Configura parâmetros padrão para a busca inicial
       const includePerfect = options.includePerfect !== undefined ? options.includePerfect : true
       const limit = options.limit !== undefined ? options.limit : 0
@@ -50,7 +43,9 @@ export default function FlashcardStudyPage() {
 
       const res = await fetch(
         `/api/lists/${params.id}?includePerfect=${includePerfect}&limit=${limit}&sort=${sort}`,
-        { headers }
+        {
+          credentials: "include", // garante envio do cookie
+        }
       )
 
       const data = await res.json()
@@ -91,7 +86,7 @@ export default function FlashcardStudyPage() {
     if (!settingsChosen) {
       fetchListData()
     }
-  }, [params.id, firebaseToken, settingsChosen])
+  }, [params.id, settingsChosen])
 
   const handleStart = (opts) => {
     setSettingsChosen(true)
@@ -103,53 +98,33 @@ export default function FlashcardStudyPage() {
     })
   }
 
-  const handleMark = async (correct) => {
+  const handleMark = (correct) => {
     if (isMarking) return
     setIsMarking(true)
 
-    const newAnsweredQuestion = {
-      term: terms[index],
-      correct,
-      index
-    }
-    setAnsweredQuestions(prev => [...prev, newAnsweredQuestion])
+    const currentTerm = terms[index]
 
+    // Atualiza UI imediatamente
+    setAnsweredQuestions(prev => [...prev, { term: currentTerm, correct, index }])
     if (correct) setRightAnswer(prev => prev + 1)
     else setWrongAnswer(prev => prev + 1)
 
-    try {
-      if (!firebaseToken) {
-        console.error("Token do Firebase não disponível")
-      } else {
-        // Dispara o update sem await — não bloqueia a interface
-        fetchWithTokenRetry(
-          `/api/lists/${params.id}/update-status`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              term: terms[index].term,
-              correct
-            })
-          },
-          firebaseToken,
-          handleRefreshToken
-        ).catch(err => {
-          console.error("Erro ao atualizar progresso:", err)
-        })
-      }
-    } catch (err) {
-      console.error("Erro inesperado:", err)
-    }
-
-    setIsMarking(false)
+    // Avança o flashcard logo
     if (index < terms.length - 1) {
-      setIndex(index + 1)
+      setIndex(prev => prev + 1)
     } else {
       setGameOver(true)
     }
+
+    // Atualiza o backend em background (sem travar UI)
+    fetch(`/api/lists/${params.id}/update-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ term: currentTerm.term, correct }),
+      credentials: "include",
+    })
+      .catch(err => console.error("Erro ao atualizar progresso:", err))
+      .finally(() => setIsMarking(false))
   }
 
   const handleReviewErrors = () => {
@@ -294,7 +269,7 @@ export default function FlashcardStudyPage() {
               answeredQuestions.find(q => q.term._id === terms[index]._id)?.correct :
               undefined
             }
-            isAuthenticated={!!firebaseToken}
+            isAuthenticated={!!user}
             isMarking={isMarking}
           />
 

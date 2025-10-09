@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Quiz from '@/components/Quiz'
 import EndGameScreen from '@/components/EndGameScreen'
-import useUserStore from '@/store/useUserStore'
 import GameSettings from '@/components/GameSettings'
 import { FiAward, FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import BackButton from '@/components/BackButton'
-import { fetchWithTokenRetry } from '@/lib/utils'
 import { shuffleArray } from '@/lib/utils'
+import useUserStore from '@/store/useUserStore'
 
 export default function QuizStudyPage() {
   const [index, setIndex] = useState(0)
@@ -29,9 +28,8 @@ export default function QuizStudyPage() {
 
   const [reviewMode, setReviewMode] = useState(false)
   const [answeredQuestions, setAnsweredQuestions] = useState([])
+  const user = useUserStore(state => state.user)
 
-  const firebaseToken = useUserStore(state => state.firebaseToken);
-  const handleRefreshToken = useUserStore(state => state.handleRefreshToken);
   const params = useParams()
 
   const fetchListData = async (options = {}) => {
@@ -41,11 +39,6 @@ export default function QuizStudyPage() {
       setLoadingInfo(true)
       setFetchError(null)
 
-      const headers = {}
-      if (firebaseToken) {
-        headers['Authorization'] = `Bearer ${firebaseToken}`
-      }
-
       // Configura parâmetros padrão para a busca inicial
       const includePerfect = options.includePerfect !== undefined ? options.includePerfect : true
       const limit = options.limit !== undefined ? options.limit : 0
@@ -53,7 +46,9 @@ export default function QuizStudyPage() {
 
       const res = await fetch(
         `/api/lists/${params.id}?includePerfect=${includePerfect}&limit=${limit}&sort=${sort}`,
-        { headers }
+        {
+          credentials: "include", // importante para enviar cookie de sessão
+        }
       )
 
       const data = await res.json()
@@ -94,7 +89,7 @@ export default function QuizStudyPage() {
     if (!settingsChosen) {
       fetchListData()
     }
-  }, [params.id, firebaseToken, settingsChosen])
+  }, [params.id, settingsChosen])
 
   useEffect(() => {
     if (terms.length > 0 && !reviewMode) {
@@ -149,30 +144,17 @@ export default function QuizStudyPage() {
     }
 
     try {
-      if (!firebaseToken) {
-        console.error("Token do Firebase não disponível")
-        return
-      }
-
-      const response = await fetchWithTokenRetry(
-        `/api/lists/${params.id}/update-status`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            term: terms[index].term,
-            correct
-          })
-        },
-        firebaseToken,
-        handleRefreshToken
-      )
-
-
+      await fetch(`/api/lists/${params.id}/update-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          term: terms[index].term,
+          correct
+        }),
+        credentials: "include", // envia cookie de sessão
+      })
     } catch (err) {
-      console.error('error: ', err)
+      console.error("Erro ao atualizar progresso:", err)
     }
   }
 
@@ -330,7 +312,7 @@ export default function QuizStudyPage() {
               key={terms[index]._id || index}
               term={terms[index]}
               options={options}
-              isAuthenticated={!!firebaseToken}
+              isAuthenticated={!!user}
               onAnswer={reviewMode ? undefined : handleAnswer}
               reset={resetKey}
               showResult={reviewMode}

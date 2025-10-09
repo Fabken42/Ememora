@@ -20,7 +20,6 @@ export default function NewListPage() {
 
   const isHydrated = useUserStore(state => state.isHydrated)
   const userId = useUserStore(state => state.user?.uid)
-  const firebaseToken = useUserStore(state => state.firebaseToken)
   const router = useRouter()
 
   // Verificar autenticação e carregar contagem de listas
@@ -28,7 +27,7 @@ export default function NewListPage() {
     if (!isHydrated) return
 
     const timer = setTimeout(() => {
-      if (!userId || !firebaseToken) {
+      if (!userId) {
         toast.error('Você precisa estar logado para criar uma lista.')
         router.push('/login')
       } else {
@@ -38,17 +37,14 @@ export default function NewListPage() {
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [userId, firebaseToken, router, isHydrated])
+  }, [userId, router, isHydrated])
 
   const checkListLimit = async () => {
-    if (!firebaseToken) return
 
     try {
       const res = await fetch('/api/lists/check-limit', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${firebaseToken}`
-        }
+        credentials: 'include'
       })
 
       if (res.ok) {
@@ -67,7 +63,7 @@ export default function NewListPage() {
     if (isSaving) return
     setIsSaving(true)
 
-    if (!userId || !firebaseToken) {
+    if (!userId) {
       toast.error('Você precisa estar logado para criar uma lista.')
       router.push('/login')
       setIsSaving(false)
@@ -100,7 +96,7 @@ export default function NewListPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${firebaseToken}`
+          'credentials': 'include'
         },
         body: JSON.stringify(payload),
       })

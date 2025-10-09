@@ -20,24 +20,17 @@ export default function TermListPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [isListAuthor, setIsListAuthor] = useState(false)
   const [totalProgress, setTotalProgress] = useState(0)
-  const { firebaseToken, isHydrated, user } = useUserStore()
+  const { isHydrated, user } = useUserStore()
   const router = useRouter()
-
-
 
   useEffect(() => {
     if (!isHydrated || !id) return;
 
     const fetchTerms = async () => {
       try {
-        const headers = {}
-        if (firebaseToken) {
-          headers['Authorization'] = `Bearer ${firebaseToken}`
-        }
-
         const res = await fetch(
           `/api/lists/${id}?page=${page}&sort=${sortOption}`,
-          { headers }
+          { credentials: 'include' }
         )
 
         if (res.status === 403) {
@@ -64,7 +57,7 @@ export default function TermListPage() {
       }
     }
     fetchTerms()
-  }, [id, firebaseToken, page, router, sortOption])
+  }, [id, page, router, sortOption, isHydrated])
 
 
   const resetStatus = async () => {
@@ -72,18 +65,9 @@ export default function TermListPage() {
     setLoadingReset(true)
 
     try {
-      if (!firebaseToken) {
-        toast.error('Você precisa estar logado.')
-        setLoadingReset(false)
-        return
-      }
-
       const res = await fetch(`/api/lists/${id}/reset-status`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${firebaseToken}`,
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include'
       })
 
       if (!res.ok) {
@@ -182,7 +166,7 @@ export default function TermListPage() {
         {/* Terms Grid */}
         <div className="grid gap-4">
           {terms.map(term => (
-            <TermCard key={term._id} term={term} isAuthenticated={!!firebaseToken} />
+            <TermCard key={term._id} term={term} isAuthenticated={!!user} />
           ))}
         </div>
 

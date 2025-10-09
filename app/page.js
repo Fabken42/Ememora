@@ -16,7 +16,7 @@ function HomeContent() {
   const searchQuery = searchParams.get('search') || ''
 
   const { setLastHomeOrUserPage } = useNavigationStore()
-  const { user, firebaseToken } = useUserStore()
+  const { user } = useUserStore()
 
   const [lists, setLists] = useState([])
   const [loading, setLoading] = useState(true)
@@ -61,7 +61,7 @@ function HomeContent() {
         const res = await fetch(
           `/api/lists?sortBy=${sortParam}${catParam}${uidParam}${searchParam}${advancedParams}&page=${page}&limit=${LISTS_PAGE_SIZE}`,
           {
-            headers: firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}
+            credentials: "include"
           }
         );
         const data = await res.json();
@@ -75,7 +75,7 @@ function HomeContent() {
     };
 
     fetchLists();
-  }, [sortBy, category, page, user?.uid, firebaseToken, advancedFilters, searchQuery]);
+  }, [sortBy, category, page, user?.uid, advancedFilters, searchQuery]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 min-h-screen">
@@ -246,7 +246,7 @@ export default function HomePage() {
           <div className="h-8 bg-[#2d2b55] rounded w-1/3 mb-2"></div>
           <div className="h-4 bg-[#2d2b55] rounded w-1/2"></div>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-[#24243e] rounded-xl border border-indigo-500/20">
           <div className="flex-1">
             <div className="h-4 bg-[#2d2b55] rounded w-1/4 mb-2"></div>

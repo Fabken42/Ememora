@@ -6,6 +6,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { isOwner } from '@/lib/isOwner'
 import { TERM_PAGE_SIZE, LIMITS } from '@/lib/utils'
 import UserProfile from '@/models/UserProfile'
+import { cookies } from 'next/headers'
 
 export async function GET(req, context) {
   await dbConnect()
@@ -32,14 +33,15 @@ export async function GET(req, context) {
     }
 
     let uid = null
-    const authHeader = req.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (sessionCookie) {
       try {
-        const token = authHeader.split(' ')[1]
-        const decoded = await getAuth().verifyIdToken(token)
-        uid = decoded?.uid || null
+        const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
+        uid = decoded.uid
       } catch (err) {
-        console.warn('Token inválido em GET /api/lists/[id]:', err.message)
+        console.warn("Cookie de sessão inválido:", err.message)
       }
     }
 
@@ -137,13 +139,13 @@ export async function PATCH(req, context) {
     const { id } = await context.params;
 
     // Verificação de autenticação
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = await getAuth().verifyIdToken(token);
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid;
 
     // Valida permissão pelo dono
@@ -256,13 +258,13 @@ export async function DELETE(req, context) {
     const { id } = await context.params;
 
     // Verificação de autenticação
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
     }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = await getAuth().verifyIdToken(token);
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid;
 
     const list = await StudyList.findById(id);
@@ -274,11 +276,6 @@ export async function DELETE(req, context) {
     const authorized = await isOwner(req, list.ownerUid);
     if (!authorized) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-
-    // Verificação adicional de segurança
-    if (list.ownerUid !== uid) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
     try {

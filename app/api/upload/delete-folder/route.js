@@ -2,17 +2,18 @@
 import { NextResponse } from 'next/server'
 import cloudinary from '@/lib/cloudinary'
 import { getAuth } from 'firebase-admin/auth'
+import { cookies } from "next/headers";
 
 export async function POST(req) {
   try {
     // Verificação de autenticação
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
     }
 
-    const token = authHeader.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(token)
+    const decoded = await getAuth().verifySessionCookie(sessionCookie, true)
     const uid = decoded.uid
 
     const { folderPath, images } = await req.json()
@@ -55,30 +56,30 @@ export async function POST(req) {
       console.log('Pasta não existe ou já foi excluída:', folderPath)
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Excluídas ${deletedCount} imagens e pasta ${folderPath}` 
+    return NextResponse.json({
+      success: true,
+      message: `Excluídas ${deletedCount} imagens e pasta ${folderPath}`
     })
-    
+
   } catch (err) {
     console.error('Erro ao excluir pasta:', err)
-    
+
     // Tratamento específico para token expirado
     if (err.code === 'auth/id-token-expired') {
       return NextResponse.json(
-        { error: 'Token expirado', code: 'TOKEN_EXPIRED' }, 
+        { error: 'Token expirado', code: 'TOKEN_EXPIRED' },
         { status: 401 }
       )
     }
-    
+
     // Tratamento para token inválido
     if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
       return NextResponse.json(
-        { error: 'Token inválido' }, 
+        { error: 'Token inválido' },
         { status: 401 }
       )
     }
-    
+
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

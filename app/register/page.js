@@ -21,16 +21,12 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-
   const setUserStore = useUserStore(state => state.setUser)
-  const setFirebaseToken = useUserStore(state => state.setFirebaseToken)
 
   const createProfileIfMissing = async (user) => {
-    const token = await user.getIdToken()
-
     const existsRes = await fetch(`/api/users/${user.uid}`, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
+      credentials: 'include'
     })
 
     let exists = null
@@ -48,8 +44,8 @@ export default function RegisterPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: displayNameFallback,
           email: user.email,
@@ -132,10 +128,14 @@ export default function RegisterPage() {
       }
 
       const profileData = await createProfileIfMissing(result.user)
-      const token = await result.user.getIdToken()
+      const idToken = await result.user.getIdToken()
+      await fetch("/api/session-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      })
 
       setUserStore(profileData)
-      setFirebaseToken(token)
 
       router.push('/')
     } catch (error) {

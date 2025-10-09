@@ -4,6 +4,7 @@ import dbConnect from '@/lib/db'
 import { isOwner } from '@/lib/isOwner'
 import UserProfile from '@/models/UserProfile'
 import { LIMITS } from '@/lib/utils'
+import { cookies } from "next/headers";
 
 export async function GET(req, context) {
   await dbConnect()
@@ -26,18 +27,14 @@ export async function POST(req, context) {
   try {
     const { uid } = await context.params;
 
-    // Verificação de autenticação
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (!sessionCookie) {
+      return NextResponse.json({ error: "Sessão não encontrada" }, { status: 401 })
     }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = await getAuth().verifyIdToken(token);
-    const authenticatedUid = decoded.uid;
-
-    // Verifica se o usuário autenticado é o mesmo que está tentando editar
-    if (authenticatedUid !== uid) {
+    const authorized = await isOwner(req, uid);
+    if (!authorized) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
@@ -68,12 +65,6 @@ export async function POST(req, context) {
       }
       // Atualiza o nome com a versão trimada
       body.name = trimmedName;
-    } else {
-      // Se name for undefined ou null, não permite a atualização para vazio
-      return NextResponse.json(
-        { error: 'O nome é obrigatório' },
-        { status: 400 }
-      );
     }
 
     // Validação da bio (opcional, mas com limite máximo)
