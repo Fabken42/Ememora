@@ -70,7 +70,7 @@ export async function GET(req, context) {
     })
 
     // Calcular progresso total
-    const totalProgress = totalMax > 0 ? Math.round((totalCurrent / totalMax) * 100) : 0
+    const totalProgress = totalMax > 0 ? Math.floor((totalCurrent / totalMax) * 100) : 0
 
     let filteredTerms = termsWithStatus
     if (!includePerfect) {
