@@ -45,23 +45,25 @@ export async function GET(req) {
 
   // CONSTRUIR A QUERY BASE PRIMEIRO (SEM $text)
   if (ownerUid) {
-    const ownerProfile = await UserProfile.findOne({ uid: ownerUid })
-    if (!ownerProfile) {
-      return NextResponse.json({ lists: [], totalPages: 0, totalCount: 0 }, { status: 200 })
-    }
+  const ownerProfile = await UserProfile.findOne({ uid: ownerUid })
+  if (!ownerProfile) {
+    return NextResponse.json({ lists: [], totalPages: 0, totalCount: 0 }, { status: 200 })
+  }
 
-    if (filter === 'liked' && uid) {
-      baseQuery = { likedBy: uid }
-    } else if (filter === 'favorited' && uid) {
-      baseQuery = { favoritedBy: uid }
-    } else {
-      baseQuery.owner = ownerProfile._id
-      const isOwner = uid === ownerUid
-      if (!isOwner) {
-        baseQuery.public = true
-      }
-    }
+  const isOwner = uid === ownerUid
+
+  // 👇 Priorize o filtro escolhido (curtidas / favoritadas)
+  if (isOwner && filter === 'liked') {
+    baseQuery = { likedBy: uid }
+  } else if (isOwner && filter === 'favorited') {
+    baseQuery = { favoritedBy: uid }
   } else {
+    // Padrão: listas criadas por esse perfil
+    baseQuery.owner = ownerProfile._id
+    if (!isOwner) baseQuery.public = true
+  }
+}
+ else {
     baseQuery.public = true
   }
 
