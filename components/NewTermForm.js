@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import { FiPlus, FiImage } from 'react-icons/fi'
-import ImageUploadField from './ImageUploadField'
-import { LIMITS } from '@/lib/utils'
+import { FiPlus, FiImage } from 'react-icons/fi';
+import ImageUploadField from './ImageUploadField';
+import { LIMITS } from '@/lib/utils';
 
 export default function NewTermForm({
   newTerm,
@@ -20,37 +20,36 @@ export default function NewTermForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block mb-2 text-sm font-medium text-gray-300">Termo *</label>
-          <input
+          <textarea
             value={newTerm.term}
             onChange={e => setNewTerm({ ...newTerm, term: e.target.value })}
             placeholder="Digite o termo"
-            className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            style={{ height: 'calc(1.5rem * 3)' }} // 👈 simula 3 linhas
+            className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            rows={3}
             maxLength={LIMITS.TERM}
           />
         </div>
-
         <div>
           <label className="block mb-2 text-sm font-medium text-gray-300">Definição *</label>
-          <input
+          <textarea
             value={newTerm.definition}
             onChange={e => setNewTerm({ ...newTerm, definition: e.target.value })}
             placeholder="Digite a definição"
-            className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            style={{ height: 'calc(1.5rem * 3)' }} // 👈 simula 3 linhas
+            className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            rows={3}
             maxLength={LIMITS.DEFINITION}
           />
         </div>
       </div>
 
-      <div>
+       <div>
         <label className="block mb-2 text-sm font-medium text-gray-300">Dica (opcional)</label>
-        <input
+        <textarea
           value={newTerm.hint}
           onChange={e => setNewTerm({ ...newTerm, hint: e.target.value })}
           placeholder="Dica para ajudar a lembrar"
-          className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          style={{ height: 'calc(1.5rem * 2)' }} // 👈 simula 2 linhas
+          className="w-full border border-indigo-500/30 bg-[#2d2b55] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          rows={2}
           maxLength={LIMITS.TIP}
         />
       </div>
@@ -85,5 +84,5 @@ export default function NewTermForm({
         </button>
       </div>
     </div>
-  )
+  );
 }
