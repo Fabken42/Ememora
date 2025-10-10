@@ -55,14 +55,15 @@ export default function ExistingTermCard({
 
       <div>
         <label className="block mb-2 text-sm font-medium text-gray-300">Dica (opcional)</label>
-        <input
+        <textarea
           value={term.hint}
           onChange={e => onTermChange(index, 'hint', e.target.value)}
           onBlur={onTermBlur}
           placeholder="Dica para ajudar a lembrar"
-          className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          className="w-full border border-indigo-500/30 bg-[#2d2b55] text-[--primary-text] px-4 py-3 rounded-lg resize-y placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          rows={2}
         />
-      </div>
+    </div>
 
       {/* Imagens do termo existente */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
