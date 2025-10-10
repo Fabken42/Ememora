@@ -254,7 +254,7 @@ export default function EditListPage() {
       });
 
       if (!res.ok) console.error('Erro ao salvar lista')
-      toast.success('Lista salva!');
+      // toast.success('Lista salva!');
     } catch (err) {
       console.error('Erro ao salvar lista:', err);
     } finally {
