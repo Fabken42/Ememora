@@ -4,7 +4,7 @@ import mongoose from 'mongoose'
 // Subschema explícito para progress (sem _id em cada subdoc)
 const ProgressSchema = new mongoose.Schema({
   userId: { type: String, required: true },
-  status: { type: Number, default: 0, min: 0, max: 6 }
+  status: { type: Number, default: 2, min: 0, max: 6 }
 }, { _id: false })
 
 const TermSchema = new mongoose.Schema({
