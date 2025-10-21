@@ -29,7 +29,7 @@ export async function PATCH(req, context) {
     list.terms.forEach(term => {
       const progressEntry = term.progress?.find(p => p.userId.toString() === uid)
       if (progressEntry) {
-        progressEntry.status = 0
+        progressEntry.status = 2
       }
     })
 
