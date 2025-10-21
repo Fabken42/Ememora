@@ -115,7 +115,7 @@ export default function EditListPage() {
     try {
       const termsWithProgress = newTerms.map(term => ({
         ...term,
-        progress: userId ? [{ userId, status: 0 }] : []
+        progress: userId ? [{ userId, status: 2 }] : []
       }));
 
       const updatedTerms = [...terms, ...termsWithProgress];
@@ -369,7 +369,7 @@ export default function EditListPage() {
         ...terms,
         {
           ...finalTermData,
-          progress: userId ? [{ userId, status: 0 }] : []
+          progress: userId ? [{ userId, status: 2 }] : []
         }
       ];
 
