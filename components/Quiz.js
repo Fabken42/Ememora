@@ -74,8 +74,42 @@ export default function Quiz({
 
   const displayOptions = showResult && reviewData ? reviewData.options : options
 
-  return (
+ return (
     <div className={`border-2 p-6 rounded-xl bg-[#24243e] shadow-lg transition-all ${getBorderColor()}`}>
+      {/* Hint - Agora é o primeiro elemento */}
+      {term.hint && (
+        <div className="relative flex justify-center mb-4">
+          <button
+            onClick={toggleHint}
+            className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors p-2 rounded-lg hover:bg-[#2d2b55]"
+            aria-label="Mostrar dica"
+          >
+            <FiInfo className="w-5 h-5" /> {/* Ícone maior */}
+            <span className="text-base font-medium">Dica</span>
+          </button>
+
+          {/* Tooltip que aparece em cima */}
+          {(showHint) && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-[#2d2b55] text-gray-200 text-base rounded-lg p-4 shadow-lg z-10 border border-indigo-500/30 break-words">
+              {term.hint}
+              <div className="absolute top-full -left-1/2 -translate-x-1/2 -mt-1 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-t border-r border-indigo-500/30"></div>
+
+              {/* Botão de fechar para mobile */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowHint(false)
+                }}
+                className="absolute top-1 right-1 text-gray-400 hover:text-white p-1"
+                aria-label="Fechar dica"
+              >
+                <FiX className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Term Header */}
       <div className="flex flex-col items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
@@ -94,40 +128,6 @@ export default function Quiz({
               alt="Imagem do termo"
               className="w-full h-full object-contain p-2"
             />
-          </div>
-        )}
-
-        {/* Hint - Versão melhorada */}
-        {term.hint && (
-          <div className="relative flex justify-center mt-2">
-            <button
-              onClick={toggleHint}
-              className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors p-2 rounded-lg hover:bg-[#2d2b55]"
-              aria-label="Mostrar dica"
-            >
-              <FiInfo className="w-5 h-5" /> {/* Ícone maior */}
-              <span className="text-base font-medium">Dica</span>
-            </button>
-
-            {/* Tooltip que aparece tanto no hover quanto no click */}
-            {(showHint) && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-72 bg-[#2d2b55] text-gray-200 text-base rounded-lg p-4 shadow-lg z-10 border border-indigo-500/30 break-words">
-                {term.hint}
-                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-3 bg-[#2d2b55] transform rotate-45 border-l border-b border-indigo-500/30"></div>
-
-                {/* Botão de fechar para mobile */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowHint(false)
-                  }}
-                  className="absolute top-1 right-1 text-gray-400 hover:text-white p-1"
-                  aria-label="Fechar dica"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </div>
-            )}
           </div>
         )}
 
