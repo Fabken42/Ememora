@@ -393,7 +393,7 @@ export default function EditListPage() {
   };
 
   const removeTerm = async (index) => {
-    if (!confirm('Excluir este termo?') || !userId) return;
+    if (!userId) return;
 
     try {
       const termToRemove = terms[index];
